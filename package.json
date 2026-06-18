@@ -15,6 +15,7 @@
 		"dev": "bash -c 'trap \"kill 0\" EXIT; pnpm run dev:feed & pnpm run dev:ingest & wait'",
 		"dev:ingest": "pnpm --filter @bsky-ai-feed/ingest dev",
 		"dev:feed": "pnpm --filter @bsky-ai-feed/feed-server dev",
+		"start": "bash -c 'trap \"kill 0\" EXIT; pnpm --filter @bsky-ai-feed/feed-server start & pnpm --filter @bsky-ai-feed/ingest start & wait'",
 		"ingest": "pnpm --filter @bsky-ai-feed/ingest start",
 		"publish:plan": "pnpm --filter @bsky-ai-feed/feed-server publish:plan"
 	},

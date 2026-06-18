@@ -70,5 +70,5 @@ For production-style runs after building:
 
 ```sh
 pnpm run build
-pnpm run ingest
+pnpm start
 ```
