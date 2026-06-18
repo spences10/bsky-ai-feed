@@ -1,102 +1,46 @@
 # AI Tech Feed for Bluesky
 
-A self-hosted Bluesky custom feed that surfaces high-signal posts about
-AI as a technology. It listens to Jetstream, applies cheap local filters,
-asks an AI judge to review likely matches, stores accepted posts, and
-serves Bluesky feed skeletons from SQLite.
+A Bluesky custom feed for people who want the technical AI conversation
+without the hype cycle.
 
 ![AI Tech Feed icon](./assets/feed-icon.png)
 
-## Product shape
+AI Tech Feed watches the Bluesky firehose for posts about AI, ML, LLMs,
+agents, tooling, research, infrastructure, and practical engineering.
+It filters out the obvious noise first, then uses an AI judge to keep the
+feed focused on genuinely useful technology posts.
 
-- Consume Jetstream post records only.
-- Run a cheap local stage 1 filter first: English posts only, no
-  replies, near-duplicate suppression, and word-boundary AI keyword
-  matching.
-- Batch stage 1 survivors through an AI judge that decides whether
-  each post is genuinely high-signal AI/ML/LLM technology content.
-- Store accepted post URIs with CIDs, timestamps, score, matched
-  keywords, and judge metadata.
-- Store candidate decision audit rows so false positives and false
-  negatives can be reviewed later.
-- Serve feed skeletons from stored URIs, score first with recency
-  tiebreaking, and opaque cursor pagination.
+## Built for signal
 
-## Workspace layout
+This feed is tuned for posts that help engineers, researchers, builders,
+and curious technologists track what is actually happening in AI:
 
-- `packages/core` — shared post types, keywords, and local filters.
-- `packages/judge` — AI judge interface and prompt contract.
-- `packages/store` — feed storage interface, in-memory test store, and
-  `node:sqlite` store.
-- `apps/ingest` — Jetstream ingest worker for keyword-filtered posts.
-- `apps/feed-server` — HTTP feed generator.
+- model releases, benchmarks, evals, and research notes
+- agent frameworks, developer tools, libraries, and infrastructure
+- practical lessons from building with AI systems
+- thoughtful analysis of capabilities, limitations, safety, and tradeoffs
+- links to demos, papers, repos, and technical write-ups
 
-## Research notes
+## Not another AI hype feed
 
-- Bluesky custom feeds return skeleton post URIs; AppView hydrates
-  posts for clients.
-- Feed skeleton requests accept and return an opaque cursor; Bluesky
-  recommends a unique per-feed-item cursor such as timestamp plus CID.
-- Generic non-personalized feeds do not need request auth.
-- Jetstream provides JSON firehose events and supports query filtering
-  to receive only post records.
-- Official docs suggest garbage-collecting short-lived feed data
-  around 48 hours unless the algorithm is meant to preserve missed
-  history.
+The goal is not to capture every post that mentions AI. The feed avoids
+low-signal content such as generic marketing, engagement bait,
+non-technical hot takes, duplicated viral posts, and casual mentions
+where AI is not the subject.
 
-Sources checked with OmniSearch: Bluesky Custom Feeds docs, Bluesky
-Firehose docs, `bluesky-social/feed-generator`, and
-`bluesky-social/jetstream`.
+## How it works
 
-## Local validation
+- Jetstream supplies live Bluesky post events.
+- A local filter keeps likely candidates and drops replies, duplicates,
+  and keyword misses.
+- A second-stage judge checks whether each candidate is truly about AI
+  as a technology.
+- Accepted posts are stored and served through the Bluesky custom feed
+  protocol.
 
-```sh
-pnpm install
-cp .env.example .env
-pnpm run check
-pnpm run test
-pnpm run build
-```
+## Project status
 
-Run the local product loop against the shared SQLite database:
-
-```sh
-pnpm run dev
-```
-
-Then open <http://localhost:3000/>. It returns JSON with ingest
-status, the feed DID/endpoints, and the exact feed skeleton rows that
-will be served to Bluesky. The raw feed skeleton is still available
-at:
-
-```sh
-curl 'http://localhost:3000/xrpc/app.bsky.feed.getFeedSkeleton?feed=test'
-```
-
-Review recent judge decisions:
-
-```sh
-pnpm run review -- --limit=25
-pnpm run review -- --accepted
-pnpm run review -- --rejected
-```
-
-Production deployments can expose the authenticated ingest task API
-for DB updates from curl or cron jobs. Set `INGEST_TOKEN`, then call:
-
-```sh
-curl -X POST "$FEEDGEN_SERVICE_URL/api/ingest" \
-  -H "authorization: Bearer $INGEST_TOKEN" \
-  -H 'content-type: application/json' \
-  -d '{"task":"review_decisions","data":{"limit":10}}'
-```
-
-Supported tasks: `put_posts`, `put_decisions`, `review_decisions`, and
-`delete_older_than`.
-
-For production-style runs after building:
-
-```sh
-pnpm run build
-pnpm start
-```
+This repo contains the full feed generator: ingest worker, judge layer,
+SQLite-backed store, review tools, and HTTP feed server. It is built to
+be small, inspectable, and self-hostable while keeping the public README
+focused on what the feed is for.
