@@ -172,6 +172,11 @@ export function create_request_handler(
 			return;
 		}
 
+		if (request_url.pathname === '/icon.svg') {
+			write_svg(response, icon_svg());
+			return;
+		}
+
 		if (request_url.pathname === '/health') {
 			write_json(response, create_health_body());
 			return;
@@ -524,6 +529,14 @@ function render_landing_page(view: LandingPageView): string {
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>AI Tech Feed</title>
 <meta name="description" content="A high-signal Bluesky feed for AI technology posts." />
+<meta property="og:title" content="AI Tech Feed" />
+<meta property="og:description" content="AI signal, minus the sludge. A high-signal Bluesky feed for AI technology posts." />
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://bsky-ai.devhub.party/" />
+<meta property="og:image" content="https://bsky-ai.devhub.party/icon.svg" />
+<meta name="twitter:card" content="summary" />
+<meta name="theme-color" content="#070912" />
+<link rel="icon" href="/icon.svg" type="image/svg+xml" />
 <style>
 :root{color-scheme:dark;--bg:#070912;--ink:#f3f7ff;--muted:#9aa9c7;--line:rgba(180,210,255,.18);--blue:#79d8ff;--violet:#8b5cf6;--lime:#b7ff7a;--card:rgba(13,22,40,.78)}
 *{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(circle at 18% 12%,#1b7dff 0 16rem,transparent 30rem),radial-gradient(circle at 88% 28%,rgba(139,92,246,.55),transparent 24rem),linear-gradient(135deg,#08111f,#060812 62%,#03040a);color:var(--ink);font:16px/1.5 ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif;overflow-x:hidden}body:before{content:"";position:fixed;inset:0;background:linear-gradient(rgba(255,255,255,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.03) 1px,transparent 1px);background-size:44px 44px;mask-image:radial-gradient(circle at 50% 18%,#000,transparent 70%);pointer-events:none}.wrap{width:min(1120px,calc(100% - 32px));margin:0 auto;padding:56px 0 42px}.hero{display:grid;grid-template-columns:1.05fr .95fr;gap:clamp(28px,5vw,76px);align-items:center;min-height:68vh}.eyebrow{display:inline-flex;gap:10px;align-items:center;color:var(--blue);font-size:13px;font-weight:800;letter-spacing:.18em;text-transform:uppercase}.dot{width:9px;height:9px;border-radius:50%;background:var(--lime);box-shadow:0 0 22px var(--lime)}h1{margin:18px 0 16px;font-size:clamp(48px,9vw,116px);line-height:.84;letter-spacing:-.085em}.lede{max-width:650px;color:#ccdaf6;font-size:clamp(18px,2.2vw,24px)}.actions{display:flex;flex-wrap:wrap;gap:14px;margin-top:30px}.button{border:1px solid var(--line);border-radius:999px;padding:12px 18px;color:var(--ink);text-decoration:none;font-weight:800;background:rgba(255,255,255,.08)}.button.primary{background:var(--ink);color:#07111f}.orb{position:relative;aspect-ratio:1;border-radius:34%;background:radial-gradient(circle at 34% 20%,#3fdcff,#194dff 34%,#111b34 66%,#050812);box-shadow:0 35px 120px rgba(30,140,255,.35);display:grid;place-items:center}.orb img{width:72%;filter:drop-shadow(0 22px 50px rgba(75,210,255,.35))}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:18px 0 36px}.stat{background:var(--card);border:1px solid var(--line);padding:18px;border-radius:24px}.stat b{display:block;font-size:clamp(26px,4vw,44px);letter-spacing:-.05em}.stat span{color:var(--muted);font-size:13px;text-transform:uppercase;letter-spacing:.12em}.panel{display:grid;grid-template-columns:.85fr 1.15fr;gap:18px}.card{background:var(--card);border:1px solid var(--line);border-radius:32px;padding:24px;box-shadow:0 20px 80px rgba(0,0,0,.24)}h2{margin:0 0 14px;font-size:24px}.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:#bcd3ff;font-size:13px;overflow-wrap:anywhere}.live{display:inline-flex;align-items:center;gap:9px;color:${view.connected ? 'var(--lime)' : '#ffb86b'};font-weight:900}.posts{list-style:none;margin:0;padding:0;display:grid;gap:12px}.posts li{padding:16px;border-radius:20px;background:rgba(255,255,255,.055);border:1px solid rgba(255,255,255,.08)}.posts a{color:#eaf6ff;text-decoration:none}.posts small{display:block;margin-top:10px;color:var(--muted)}.empty{color:var(--muted)}footer{margin-top:42px;color:var(--muted);font-size:13px}@media (max-width:820px){.hero,.panel{grid-template-columns:1fr}.orb{max-width:420px}.stats{grid-template-columns:repeat(2,1fr)}h1{letter-spacing:-.06em}}
@@ -538,7 +551,7 @@ function render_landing_page(view: LandingPageView): string {
 <p class="lede">A Bluesky custom feed that watches Jetstream, filters locally, asks an AI judge for a second opinion, and serves the sharpest AI technology posts.</p>
 <div class="actions"><a class="button primary" href="${escape_html(view.feed_url)}">Open on Bluesky</a><a class="button" href="/xrpc/app.bsky.feed.getFeedSkeleton?feed=test&limit=10">View skeleton JSON</a><a class="button" href="/api/status">API status</a></div>
 </div>
-<div class="orb"><img alt="AI Tech Feed icon" src="${icon_data_uri()}" /></div>
+<div class="orb"><img alt="AI Tech Feed icon" src="/icon.svg" /></div>
 </section>
 <section class="stats" aria-label="Feed stats">
 ${render_stat('Seen', view.seen)}${render_stat('Accepted', view.accepted)}${render_stat('Rejected', view.rejected)}${render_stat('Live posts', view.posts.length)}
@@ -594,8 +607,8 @@ function status_string(
 	return typeof entry === 'string' ? entry : undefined;
 }
 
-function icon_data_uri(): string {
-	return 'data:image/svg+xml,%3Csvg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg"%3E%3Crect width="512" height="512" rx="112" fill="%23070912"/%3E%3Ccircle cx="256" cy="256" r="170" fill="%231b7dff"/%3E%3Cpath d="M126 256C126 184 184 126 256 126C328 126 386 184 386 256C386 328 328 386 256 386" stroke="%2379d8ff" stroke-width="24" stroke-linecap="round"/%3E%3Cpath d="M256 156V356M169 306L256 156L343 306M207 257H305" stroke="%23f3f7ff" stroke-width="26" stroke-linecap="round" stroke-linejoin="round"/%3E%3Ccircle cx="256" cy="156" r="18" fill="%23fff"/%3E%3Ccircle cx="169" cy="306" r="18" fill="%23fff"/%3E%3Ccircle cx="343" cy="306" r="18" fill="%23fff"/%3E%3Cpath d="M392 112L404 142L434 154L404 166L392 196L380 166L350 154L380 142L392 112Z" fill="%23BFF7FF"/%3E%3C/svg%3E';
+function icon_svg(): string {
+	return '<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg"><rect width="512" height="512" rx="112" fill="#070912"/><circle cx="256" cy="256" r="170" fill="#1b7dff"/><path d="M126 256C126 184 184 126 256 126C328 126 386 184 386 256C386 328 328 386 256 386" stroke="#79d8ff" stroke-width="24" stroke-linecap="round"/><path d="M256 156V356M169 306L256 156L343 306M207 257H305" stroke="#f3f7ff" stroke-width="26" stroke-linecap="round" stroke-linejoin="round"/><circle cx="256" cy="156" r="18" fill="#fff"/><circle cx="169" cy="306" r="18" fill="#fff"/><circle cx="343" cy="306" r="18" fill="#fff"/><path d="M392 112L404 142L434 154L404 166L392 196L380 166L350 154L380 142L392 112Z" fill="#BFF7FF"/></svg>';
 }
 
 function escape_html(value: string): string {
@@ -614,6 +627,18 @@ function write_html(
 ) {
 	response.writeHead(status_code, {
 		'content-type': 'text/html; charset=utf-8',
+	});
+	response.end(body);
+}
+
+function write_svg(
+	response: ServerResponse,
+	body: string,
+	status_code = 200,
+) {
+	response.writeHead(status_code, {
+		'cache-control': 'public, max-age=86400',
+		'content-type': 'image/svg+xml; charset=utf-8',
 	});
 	response.end(body);
 }
