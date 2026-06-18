@@ -3,6 +3,8 @@
 A Bluesky custom feed for people who want the technical AI conversation
 without the hype cycle.
 
+Follow the feed: <https://bsky.app/profile/scottspence.dev/feed/ai-feed>
+
 ![AI Tech Feed icon](./assets/feed-icon.png)
 
 AI Tech Feed watches the Bluesky firehose for posts about AI, ML, LLMs,
