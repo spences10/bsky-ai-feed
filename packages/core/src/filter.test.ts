@@ -63,4 +63,13 @@ describe('filter_candidate_post', () => {
 			}),
 		).toEqual({ accepted: false, reason: 'suppressed' });
 	});
+
+	it('rejects AI art and politics bait before paid judging', () => {
+		expect(
+			filter_candidate_post({
+				...base_post,
+				text: 'This AI art is slop and the nazis love it',
+			}),
+		).toEqual({ accepted: false, reason: 'suppressed' });
+	});
 });

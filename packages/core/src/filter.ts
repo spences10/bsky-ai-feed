@@ -98,6 +98,10 @@ const low_signal_patterns = [
 	/\b(?:zurl\.co|lttr\.ai)\//iu,
 	/\bcreated with\s+(?:AI|recraft\.ai)\b/iu,
 	/\bAI[- ]generated\)?\s*$/iu,
+	/\b(?:AI|generated)\s+(?:art|artist|artists|image|images|video|videos)\b/iu,
+	/\b(?:art|image|video)s?\s+(?:made|created|generated)\s+(?:with|by)\s+AI\b/iu,
+	/\bAI\s+slop\b/iu,
+	/\b(?:nazi|nazis|hitler|fascist|fascism)\b/iu,
 ] as const;
 
 function escape_regex(value: string): string {
