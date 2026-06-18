@@ -16,7 +16,7 @@ describe('create_feed_skeleton_body', () => {
 			create_feed_skeleton_body(store, undefined, 50),
 		).resolves.toEqual({
 			feed: [{ post: 'at://did:example/app.bsky.feed.post/1' }],
-			cursor: '2026-01-01T00:00:00.000Z',
+			cursor: '2026-01-01T00:00:00.000Z::bafy1',
 		});
 	});
 });

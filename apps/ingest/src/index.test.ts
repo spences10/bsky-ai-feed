@@ -1,4 +1,5 @@
 import type { Judge } from '@bsky-ai-feed/judge';
+import { create_memory_feed_store } from '@bsky-ai-feed/store';
 import { describe, expect, it } from 'vitest';
 import {
 	create_ingest_pipeline,
@@ -19,6 +20,7 @@ describe('create_ingest_pipeline', () => {
 	it('stores posts that pass keyword filtering and AI judging', async () => {
 		const pipeline = create_ingest_pipeline({
 			judge: accepting_judge,
+			store: create_memory_feed_store(),
 		});
 
 		const accepted_posts = await pipeline.process_posts([

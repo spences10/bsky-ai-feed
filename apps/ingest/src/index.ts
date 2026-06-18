@@ -10,15 +10,17 @@ import {
 	type Judge,
 } from '@bsky-ai-feed/judge';
 import {
-	create_memory_feed_store,
+	create_sqlite_feed_store,
 	type FeedStore,
 } from '@bsky-ai-feed/store';
+import { fileURLToPath } from 'node:url';
 
 export type IngestPipelineOptions = {
 	judge?: Judge;
 	store?: FeedStore;
 	confidence_threshold?: number;
 	seen_text?: Set<string>;
+	database_path?: string;
 };
 
 export type IngestPipeline = {
@@ -29,7 +31,14 @@ export function create_ingest_pipeline(
 	options: IngestPipelineOptions = {},
 ): IngestPipeline {
 	const judge = options.judge ?? create_noop_judge();
-	const store = options.store ?? create_memory_feed_store();
+	const store =
+		options.store ??
+		create_sqlite_feed_store({
+			path:
+				options.database_path ??
+				process.env.BSKY_AI_FEED_DB_PATH ??
+				default_database_path(),
+		});
 	const confidence_threshold = options.confidence_threshold ?? 0.7;
 	const seen_text = options.seen_text ?? new Set<string>();
 
@@ -66,6 +75,12 @@ export function create_ingest_pipeline(
 			return accepted_posts;
 		},
 	};
+}
+
+function default_database_path(): string {
+	return fileURLToPath(
+		new URL('../../../.data/feed.sqlite', import.meta.url),
+	);
 }
 
 export function create_jetstream_url(

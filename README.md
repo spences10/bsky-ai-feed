@@ -19,7 +19,8 @@ technology.
 
 - `packages/core` — shared post types, keywords, and local filters.
 - `packages/judge` — AI judge interface and prompt contract.
-- `packages/store` — feed storage interface and in-memory test store.
+- `packages/store` — feed storage interface, in-memory test store, and
+  `node:sqlite` store.
 - `apps/ingest` — Jetstream ingest pipeline skeleton.
 - `apps/feed-server` — HTTP feed generator skeleton.
 
@@ -44,6 +45,7 @@ Firehose docs, `bluesky-social/feed-generator`, and
 
 ```sh
 pnpm install
+cp .env.example .env
 pnpm run check
 pnpm run test
 pnpm run build

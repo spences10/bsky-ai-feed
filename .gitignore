@@ -3,6 +3,7 @@ dist/
 apps/*/dist/
 packages/*/dist/
 coverage/
+.data/
 *.tsbuildinfo
 .env
 .env.*

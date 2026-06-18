@@ -1,4 +1,20 @@
 import type { FeedPost } from '@bsky-ai-feed/core';
+import {
+	compare_feed_posts,
+	decode_feed_cursor,
+	encode_feed_cursor,
+	is_before_cursor,
+} from './cursor.js';
+
+export {
+	compare_feed_posts,
+	decode_feed_cursor,
+	encode_feed_cursor,
+	is_before_cursor,
+} from './cursor.js';
+export type { DecodedCursor } from './cursor.js';
+export { create_sqlite_feed_store } from './sqlite.js';
+export type { SqliteFeedStoreOptions } from './sqlite.js';
 
 export type FeedCursor = {
 	before?: string;
@@ -14,6 +30,7 @@ export type FeedStore = {
 	put_posts(posts: FeedPost[]): Promise<void>;
 	get_feed_page(cursor: FeedCursor): Promise<FeedPage>;
 	delete_older_than(cutoff_iso: string): Promise<number>;
+	close?: () => void;
 };
 
 export function create_memory_feed_store(
@@ -28,15 +45,15 @@ export function create_memory_feed_store(
 			for (const post of posts) posts_by_uri.set(post.uri, post);
 		},
 		async get_feed_page({ before, limit }) {
+			const decoded_cursor = decode_feed_cursor(before);
 			const ordered_posts = [...posts_by_uri.values()]
-				.sort((left, right) =>
-					right.accepted_at.localeCompare(left.accepted_at),
-				)
-				.filter((post) => !before || post.accepted_at < before);
+				.sort(compare_feed_posts)
+				.filter((post) => is_before_cursor(post, decoded_cursor));
 			const page_posts = ordered_posts.slice(0, limit);
+			const last_post = page_posts.at(-1);
 			return {
 				posts: page_posts,
-				cursor: page_posts.at(-1)?.accepted_at,
+				cursor: last_post ? encode_feed_cursor(last_post) : undefined,
 			};
 		},
 		async delete_older_than(cutoff_iso) {
