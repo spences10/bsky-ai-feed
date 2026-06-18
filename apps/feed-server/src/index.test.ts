@@ -14,6 +14,7 @@ describe('create_service_status_body', () => {
 			did: 'did:web:localhost',
 			endpoints: {
 				health: '/health',
+				status_api: '/api/status',
 				did: '/.well-known/did.json',
 				describe_feed_generator:
 					'/xrpc/app.bsky.feed.describeFeedGenerator',
