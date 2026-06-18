@@ -7,7 +7,7 @@ export FEEDGEN_DID="${FEEDGEN_DID:-did:web:bsky-ai.devhub.party}"
 export BSKY_HANDLE="${BSKY_HANDLE:-scottspence.dev}"
 export BSKY_FEED_RKEY="${BSKY_FEED_RKEY:-ai-feed}"
 export BSKY_FEED_DISPLAY_NAME="${BSKY_FEED_DISPLAY_NAME:-AI Tech Feed}"
-export BSKY_FEED_DESCRIPTION="${BSKY_FEED_DESCRIPTION:-High-signal posts about AI as a technology.}"
+export BSKY_FEED_DESCRIPTION="${BSKY_FEED_DESCRIPTION:-A live, picky feed for AI builders: model releases, evals, agents, tools, infra, research notes, and practical engineering — filtered hard to skip hype, AI art, bait, and culture-war sludge.}"
 if [[ -z "${BSKY_FEED_AVATAR_PATH:-}" ]]; then
 	BSKY_FEED_AVATAR_PATH="$PWD/assets/feed-icon.png"
 elif [[ "$BSKY_FEED_AVATAR_PATH" != /* ]]; then

@@ -149,7 +149,7 @@ function read_config_from_env(): PublishFeedConfig {
 		display_name: process.env.BSKY_FEED_DISPLAY_NAME ?? 'AI Feed',
 		description:
 			process.env.BSKY_FEED_DESCRIPTION ??
-			'High-signal posts about AI as a technology.',
+			'A live, picky feed for AI builders: model releases, evals, agents, tools, infra, research notes, and practical engineering — filtered hard to skip hype, AI art, bait, and culture-war sludge.',
 		avatar_path: process.env.BSKY_FEED_AVATAR_PATH,
 		pds_url: process.env.BSKY_PDS_URL ?? 'https://bsky.social',
 		handle: required_env('BSKY_HANDLE'),
