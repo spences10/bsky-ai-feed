@@ -3,10 +3,22 @@ import { create_openai_judge } from './openai.js';
 export { create_openai_judge } from './openai.js';
 export type { OpenAiJudgeOptions } from './openai.js';
 
+export type JudgeCategory =
+	| 'model-research'
+	| 'developer-tooling'
+	| 'product-industry'
+	| 'policy-safety'
+	| 'infrastructure'
+	| 'low-signal'
+	| 'spam'
+	| 'off-topic';
+
 export type JudgeDecision = {
 	uri: string;
 	is_ai_technology: boolean;
 	confidence: number;
+	score?: number;
+	category?: JudgeCategory;
 	reason?: string;
 };
 
@@ -20,9 +32,22 @@ export type Judge = {
 };
 
 export const ai_technology_prompt = [
-	'You are curating a Bluesky feed about AI as a technology.',
-	'Accept posts about AI models, ML research, AI products, AI tooling, or AI industry news.',
-	'Reject metaphorical uses, first aid, anti-AI posts without technical substance, and name collisions.',
+	'You curate a Bluesky feed for high-signal AI technology posts.',
+	'',
+	'Accept only posts that would be useful to someone following AI/ML/LLM technology deliberately.',
+	'Good accepts include concrete model releases, research/evals, developer tooling, agent workflows, AI infrastructure, safety/security, and materially important product or industry news.',
+	'',
+	'Hard reject even if AI keywords appear:',
+	'- crypto/stock/trading posts, price bots, and DePIN hashtag bait',
+	'- jobs, hiring ads, lead-gen, webinars, newsletters, SEO/content-marketing, affiliate/link farms',
+	'- posts where AI is only an image credit, artwork disclosure, insult, joke, horoscope/sign, or metaphor',
+	'- generic business transformation fluff without technical or product substance',
+	'- non-English posts unless the technical substance is obvious from the text',
+	'- pure anti-AI/pro-AI venting without a concrete technical claim',
+	'- bots that repost headlines without adding signal',
+	'',
+	'Prefer false negatives over false positives. A feed item should be specific, timely, and worth clicking or discussing.',
+	'Use score for feed value from 0 to 1, not just topicality. Accept only when score is at least 0.65.',
 	'Return only decisions keyed by URI.',
 ].join('\n');
 
@@ -40,6 +65,8 @@ export function create_noop_judge(): Judge {
 				uri: post.uri,
 				is_ai_technology: false,
 				confidence: 0,
+				score: 0,
+				category: 'off-topic',
 				reason: 'noop judge is not configured',
 			}));
 		},

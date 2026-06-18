@@ -14,6 +14,11 @@ export type FeedPost = PostRef & {
 	accepted_at: string;
 	indexed_at?: string;
 	score?: number;
+	text?: string;
+	matched_keywords?: string[];
+	judge_confidence?: number;
+	judge_reason?: string;
+	judge_category?: string;
 };
 
 export type RejectionReason =

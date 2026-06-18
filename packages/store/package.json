@@ -5,6 +5,7 @@
 	"license": "MIT",
 	"files": [
 		"dist",
+		"schema.sql",
 		"README.md"
 	],
 	"type": "module",

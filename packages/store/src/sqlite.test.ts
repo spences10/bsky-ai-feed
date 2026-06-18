@@ -1,6 +1,7 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
 	create_sqlite_feed_store,
@@ -59,6 +60,72 @@ describe('create_sqlite_feed_store', () => {
 		]);
 
 		store.close?.();
+	});
+
+	it('persists judge metadata and decision audit rows', async () => {
+		const { database_path } = create_temp_database_path();
+		const store = create_sqlite_feed_store({ path: database_path });
+
+		await store.put_decisions?.([
+			{
+				uri: 'at://did:example/app.bsky.feed.post/1',
+				cid: 'bafy1',
+				text: 'OpenAI released a new model',
+				indexed_at: '2026-01-02T00:00:01.000Z',
+				judged_at: '2026-01-02T00:00:02.000Z',
+				accepted: true,
+				confidence: 0.94,
+				score: 0.82,
+				category: 'model-research',
+				reason: 'specific model news',
+				matched_keywords: ['OpenAI'],
+			},
+		]);
+		await store.put_posts([
+			{
+				uri: 'at://did:example/app.bsky.feed.post/1',
+				cid: 'bafy1',
+				accepted_at: '2026-01-02T00:00:02.000Z',
+				indexed_at: '2026-01-02T00:00:01.000Z',
+				score: 0.82,
+				text: 'OpenAI released a new model',
+				matched_keywords: ['OpenAI'],
+				judge_confidence: 0.94,
+				judge_reason: 'specific model news',
+				judge_category: 'model-research',
+			},
+		]);
+
+		await expect(
+			store.get_feed_page({ limit: 10 }),
+		).resolves.toMatchObject({
+			posts: [
+				{
+					uri: 'at://did:example/app.bsky.feed.post/1',
+					score: 0.82,
+					text: 'OpenAI released a new model',
+					matched_keywords: ['OpenAI'],
+					judge_confidence: 0.94,
+					judge_reason: 'specific model news',
+					judge_category: 'model-research',
+				},
+			],
+		});
+
+		store.close?.();
+		const database = new DatabaseSync(database_path);
+		expect(
+			database
+				.prepare(
+					'SELECT accepted, category, reason FROM candidate_decisions WHERE uri = ?',
+				)
+				.get('at://did:example/app.bsky.feed.post/1'),
+		).toEqual({
+			accepted: 1,
+			category: 'model-research',
+			reason: 'specific model news',
+		});
+		database.close();
 	});
 
 	it('deletes posts older than a cutoff', async () => {

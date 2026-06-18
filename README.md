@@ -10,8 +10,11 @@ technology.
   replies, near-duplicate suppression, and word-boundary AI keyword
   matching.
 - Batch stage 1 survivors through an AI judge that decides whether
-  each post is actually about AI, ML, or LLMs as technology.
-- Store accepted post URIs with CIDs and timestamps.
+  each post is genuinely high-signal AI/ML/LLM technology content.
+- Store accepted post URIs with CIDs, timestamps, score, matched
+  keywords, and judge metadata.
+- Store candidate decision audit rows so false positives and false
+  negatives can be reviewed later.
 - Serve feed skeletons from stored URIs, newest first, with opaque
   cursor pagination.
 

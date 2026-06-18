@@ -12,6 +12,7 @@ import {
 } from '@bsky-ai-feed/judge';
 import {
 	create_sqlite_feed_store,
+	type CandidateDecision,
 	type FeedStore,
 } from '@bsky-ai-feed/store';
 import { fileURLToPath } from 'node:url';
@@ -35,6 +36,7 @@ export type IngestPipelineOptions = {
 	judge?: Judge;
 	store?: FeedStore;
 	confidence_threshold?: number;
+	quality_threshold?: number;
 	seen_text?: Set<string>;
 	database_path?: string;
 };
@@ -56,36 +58,77 @@ export function create_ingest_pipeline(
 				default_database_path(),
 		});
 	const confidence_threshold = options.confidence_threshold ?? 0.7;
+	const quality_threshold = options.quality_threshold ?? 0.65;
 	const seen_text = options.seen_text ?? new Set<string>();
 
 	return {
 		async process_posts(posts) {
-			const candidates = posts.filter(
-				(post) => filter_candidate_post(post, { seen_text }).accepted,
-			);
-			if (candidates.length === 0) return [];
+			const filtered_candidates = posts.flatMap((post) => {
+				const result = filter_candidate_post(post, { seen_text });
+				return result.accepted
+					? [{ post, matched_keywords: result.matched_keywords }]
+					: [];
+			});
+			if (filtered_candidates.length === 0) return [];
 
+			const candidates = filtered_candidates.map(({ post }) => post);
 			const decisions = await judge.judge_batch({
 				posts: candidates,
 				prompt: ai_technology_prompt,
 			});
-			const accepted_uris = new Set(
-				decisions
-					.filter(
-						(decision) =>
-							decision.is_ai_technology &&
-							decision.confidence >= confidence_threshold,
-					)
-					.map((decision) => decision.uri),
+			const decisions_by_uri = new Map(
+				decisions.map((decision) => [decision.uri, decision]),
 			);
-			const accepted_posts = candidates
-				.filter((post) => accepted_uris.has(post.uri))
-				.map((post) => ({
-					uri: post.uri,
-					cid: post.cid,
-					accepted_at: new Date().toISOString(),
-					indexed_at: post.indexed_at,
-				}));
+			const judged_at = new Date().toISOString();
+
+			await store.put_decisions?.(
+				filtered_candidates.map(({ post, matched_keywords }) => {
+					const decision = decisions_by_uri.get(post.uri);
+					return {
+						uri: post.uri,
+						cid: post.cid,
+						text: post.text,
+						indexed_at: post.indexed_at,
+						judged_at,
+						accepted:
+							decision?.is_ai_technology === true &&
+							decision.confidence >= confidence_threshold &&
+							(decision.score ?? 0) >= quality_threshold,
+						confidence: decision?.confidence ?? 0,
+						score: decision?.score ?? 0,
+						category: decision?.category,
+						reason: decision?.reason,
+						matched_keywords,
+					} satisfies CandidateDecision;
+				}),
+			);
+
+			const accepted_posts = filtered_candidates.flatMap(
+				({ post, matched_keywords }) => {
+					const decision = decisions_by_uri.get(post.uri);
+					if (
+						!decision?.is_ai_technology ||
+						decision.confidence < confidence_threshold ||
+						(decision.score ?? 0) < quality_threshold
+					) {
+						return [];
+					}
+					return [
+						{
+							uri: post.uri,
+							cid: post.cid,
+							accepted_at: judged_at,
+							indexed_at: post.indexed_at,
+							score: decision.score,
+							text: post.text,
+							matched_keywords,
+							judge_confidence: decision.confidence,
+							judge_reason: decision.reason,
+							judge_category: decision.category,
+						},
+					];
+				},
+			);
 
 			await store.put_posts(accepted_posts);
 			return accepted_posts;

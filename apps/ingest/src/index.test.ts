@@ -12,6 +12,9 @@ const accepting_judge: Judge = {
 			uri: post.uri,
 			is_ai_technology: true,
 			confidence: 0.95,
+			score: 0.9,
+			category: 'developer-tooling',
+			reason: 'concrete AI tooling post',
 		}));
 	},
 };

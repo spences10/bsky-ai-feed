@@ -1,13 +1,16 @@
 import {
-	ai_technology_prompt,
-	type Judge,
-} from '@bsky-ai-feed/judge';
-import {
 	filter_candidate_post,
 	type CandidatePost,
 	type FeedPost,
 } from '@bsky-ai-feed/core';
-import type { FeedStore } from '@bsky-ai-feed/store';
+import {
+	ai_technology_prompt,
+	type Judge,
+} from '@bsky-ai-feed/judge';
+import type {
+	CandidateDecision,
+	FeedStore,
+} from '@bsky-ai-feed/store';
 
 export type JetstreamRunMode = 'ingest';
 
@@ -17,6 +20,7 @@ export type JetstreamRunOptions = {
 	store?: FeedStore;
 	judge?: Judge;
 	confidence_threshold?: number;
+	quality_threshold?: number;
 	max_events?: number;
 	seen_text?: Set<string>;
 	log?: (message: string) => void;
@@ -106,7 +110,12 @@ export async function process_jetstream_message(
 	message: string,
 	options: Pick<
 		JetstreamRunOptions,
-		'mode' | 'store' | 'seen_text' | 'judge' | 'confidence_threshold'
+		| 'mode'
+		| 'store'
+		| 'seen_text'
+		| 'judge'
+		| 'confidence_threshold'
+		| 'quality_threshold'
 	>,
 ): Promise<JetstreamMessageResult> {
 	const event = JSON.parse(message) as unknown;
@@ -123,29 +132,52 @@ export async function process_jetstream_message(
 		};
 	}
 
+	const judged_at = new Date().toISOString();
+	let accepted_post: FeedPost = {
+		uri: post.uri,
+		cid: post.cid,
+		accepted_at: judged_at,
+		indexed_at: post.indexed_at,
+		text: post.text,
+		matched_keywords: filter_result.matched_keywords,
+	};
+
 	if (options.judge) {
 		const [decision] = await options.judge.judge_batch({
 			posts: [post],
 			prompt: ai_technology_prompt,
 		});
-		if (
-			!decision?.is_ai_technology ||
-			decision.confidence < (options.confidence_threshold ?? 0.7)
-		) {
+		const accepted = decision_is_accepted(decision, options);
+		const candidate_decision: CandidateDecision = {
+			uri: post.uri,
+			cid: post.cid,
+			text: post.text,
+			indexed_at: post.indexed_at,
+			judged_at,
+			accepted,
+			confidence: decision?.confidence ?? 0,
+			score: decision?.score ?? 0,
+			category: decision?.category,
+			reason: decision?.reason,
+			matched_keywords: filter_result.matched_keywords,
+		};
+		await options.store?.put_decisions?.([candidate_decision]);
+		if (!accepted) {
 			return {
 				kind: 'rejected',
 				post,
 				reason: decision?.reason ?? 'ai-judge-rejected',
 			};
 		}
+		accepted_post = {
+			...accepted_post,
+			score: decision?.score,
+			judge_confidence: decision?.confidence,
+			judge_reason: decision?.reason,
+			judge_category: decision?.category,
+		};
 	}
 
-	const accepted_post = {
-		uri: post.uri,
-		cid: post.cid,
-		accepted_at: new Date().toISOString(),
-		indexed_at: post.indexed_at,
-	} satisfies FeedPost;
 	await options.store?.put_posts([accepted_post]);
 	return { kind: 'accepted', post: accepted_post };
 }
@@ -198,6 +230,26 @@ export async function run_jetstream(
 			resolve();
 		});
 	});
+}
+
+function decision_is_accepted(
+	decision:
+		| {
+				is_ai_technology: boolean;
+				confidence: number;
+				score?: number;
+		  }
+		| undefined,
+	options: Pick<
+		JetstreamRunOptions,
+		'confidence_threshold' | 'quality_threshold'
+	>,
+): boolean {
+	return Boolean(
+		decision?.is_ai_technology &&
+		decision.confidence >= (options.confidence_threshold ?? 0.7) &&
+		(decision.score ?? 0) >= (options.quality_threshold ?? 0.65),
+	);
 }
 
 async function message_data_to_string(

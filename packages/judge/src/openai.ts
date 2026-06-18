@@ -1,5 +1,10 @@
 import type { CandidatePost } from '@bsky-ai-feed/core';
-import type { Judge, JudgeBatch, JudgeDecision } from './index.js';
+import type {
+	Judge,
+	JudgeBatch,
+	JudgeCategory,
+	JudgeDecision,
+} from './index.js';
 
 export type OpenAiJudgeOptions = {
 	api_key?: string;
@@ -21,8 +26,21 @@ type ParsedDecision = {
 	accept?: unknown;
 	is_ai_technology?: unknown;
 	confidence?: unknown;
+	score?: unknown;
+	category?: unknown;
 	reason?: unknown;
 };
+
+const judge_categories = new Set<JudgeCategory>([
+	'model-research',
+	'developer-tooling',
+	'product-industry',
+	'policy-safety',
+	'infrastructure',
+	'low-signal',
+	'spam',
+	'off-topic',
+]);
 
 export function create_openai_judge(
 	options: OpenAiJudgeOptions = {},
@@ -68,6 +86,8 @@ export function create_openai_judge(
 													'uri',
 													'accept',
 													'confidence',
+													'score',
+													'category',
 													'reason',
 												],
 												properties: {
@@ -75,6 +95,11 @@ export function create_openai_judge(
 													accept: { type: 'boolean' },
 													confidence: {
 														type: 'number',
+													},
+													score: { type: 'number' },
+													category: {
+														type: 'string',
+														enum: [...judge_categories],
 													},
 													reason: { type: 'string' },
 												},
@@ -105,8 +130,10 @@ export function create_openai_judge(
 function build_prompt(batch: JudgeBatch): string {
 	return [
 		batch.prompt,
-		'Judge each post. Accept only if the post is materially about AI/ML/LLMs as technology.',
-		'Return JSON matching the requested schema. Use confidence from 0 to 1.',
+		'Judge each post for both topicality and feed value.',
+		'accept must be false for low-signal categories even when the post mentions AI.',
+		'confidence is confidence in your decision. score is user value for this feed.',
+		'Return JSON matching the requested schema.',
 		JSON.stringify({
 			posts: batch.posts.map((post) => ({
 				uri: post.uri,
@@ -137,10 +164,9 @@ function parse_decisions(
 			is_ai_technology:
 				decision?.accept === true ||
 				decision?.is_ai_technology === true,
-			confidence:
-				typeof decision?.confidence === 'number'
-					? decision.confidence
-					: 0,
+			confidence: number_or_zero(decision?.confidence),
+			score: number_or_zero(decision?.score),
+			category: parse_category(decision?.category),
 			reason:
 				typeof decision?.reason === 'string'
 					? decision.reason
@@ -159,4 +185,17 @@ function response_text(response: OpenAiResponse): string {
 	throw new Error(
 		'OpenAI judge response did not include output text',
 	);
+}
+
+function number_or_zero(value: unknown): number {
+	return typeof value === 'number' && Number.isFinite(value)
+		? value
+		: 0;
+}
+
+function parse_category(value: unknown): JudgeCategory | undefined {
+	return typeof value === 'string' &&
+		judge_categories.has(value as JudgeCategory)
+		? (value as JudgeCategory)
+		: undefined;
 }

@@ -26,8 +26,23 @@ export type FeedPage = {
 	cursor?: string;
 };
 
+export type CandidateDecision = {
+	uri: string;
+	cid: string;
+	text: string;
+	indexed_at?: string;
+	judged_at: string;
+	accepted: boolean;
+	confidence: number;
+	score?: number;
+	category?: string;
+	reason?: string;
+	matched_keywords?: string[];
+};
+
 export type FeedStore = {
 	put_posts(posts: FeedPost[]): Promise<void>;
+	put_decisions?(decisions: CandidateDecision[]): Promise<void>;
 	get_feed_page(cursor: FeedCursor): Promise<FeedPage>;
 	delete_older_than(cutoff_iso: string): Promise<number>;
 	close?: () => void;
@@ -39,10 +54,16 @@ export function create_memory_feed_store(
 	const posts_by_uri = new Map(
 		initial_posts.map((post) => [post.uri, post]),
 	);
+	const decisions_by_uri = new Map<string, CandidateDecision>();
 
 	return {
 		async put_posts(posts) {
 			for (const post of posts) posts_by_uri.set(post.uri, post);
+		},
+		async put_decisions(decisions) {
+			for (const decision of decisions) {
+				decisions_by_uri.set(decision.uri, decision);
+			}
 		},
 		async get_feed_page({ before, limit }) {
 			const decoded_cursor = decode_feed_cursor(before);
