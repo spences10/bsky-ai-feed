@@ -3,10 +3,14 @@ import type { FeedPost } from '@bsky-ai-feed/core';
 export type DecodedCursor = {
 	accepted_at: string;
 	cid: string;
+	score?: number;
 };
 
 export function encode_feed_cursor(post: FeedPost): string {
-	return `${post.accepted_at}::${post.cid}`;
+	const score = normalize_score(post.score);
+	return score === undefined
+		? `${post.accepted_at}::${post.cid}`
+		: `${score.toFixed(6)}::${post.accepted_at}::${post.cid}`;
 }
 
 export function decode_feed_cursor(
@@ -14,14 +18,22 @@ export function decode_feed_cursor(
 ): DecodedCursor | undefined {
 	if (!cursor) return undefined;
 
-	const separator_index = cursor.lastIndexOf('::');
-	if (separator_index === -1) return undefined;
+	const parts = cursor.split('::');
+	if (parts.length === 2) {
+		const [accepted_at, cid] = parts;
+		if (!accepted_at || !cid) return undefined;
+		return { accepted_at, cid };
+	}
+	if (parts.length === 3) {
+		const [score_text, accepted_at, cid] = parts;
+		const score = Number(score_text);
+		if (!accepted_at || !cid || !Number.isFinite(score)) {
+			return undefined;
+		}
+		return { accepted_at, cid, score };
+	}
 
-	const accepted_at = cursor.slice(0, separator_index);
-	const cid = cursor.slice(separator_index + 2);
-	if (!accepted_at || !cid) return undefined;
-
-	return { accepted_at, cid };
+	return undefined;
 }
 
 export function is_before_cursor(
@@ -29,6 +41,11 @@ export function is_before_cursor(
 	cursor: DecodedCursor | undefined,
 ): boolean {
 	if (!cursor) return true;
+	if (cursor.score !== undefined) {
+		const post_score = normalize_score(post.score) ?? 0;
+		if (post_score < cursor.score) return true;
+		if (post_score > cursor.score) return false;
+	}
 	if (post.accepted_at < cursor.accepted_at) return true;
 	return (
 		post.accepted_at === cursor.accepted_at && post.cid < cursor.cid
@@ -39,9 +56,21 @@ export function compare_feed_posts(
 	left: FeedPost,
 	right: FeedPost,
 ): number {
+	const score_compare =
+		(normalize_score(right.score) ?? 0) -
+		(normalize_score(left.score) ?? 0);
+	if (score_compare !== 0) return score_compare;
 	const time_compare = right.accepted_at.localeCompare(
 		left.accepted_at,
 	);
 	if (time_compare !== 0) return time_compare;
 	return right.cid.localeCompare(left.cid);
+}
+
+function normalize_score(
+	score: number | undefined,
+): number | undefined {
+	return typeof score === 'number' && Number.isFinite(score)
+		? score
+		: undefined;
 }

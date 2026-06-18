@@ -3,7 +3,7 @@ import { mkdirSync, readFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { decode_feed_cursor, encode_feed_cursor } from './cursor.js';
-import type { FeedStore } from './index.js';
+import type { CandidateDecision, FeedStore } from './index.js';
 
 export type SqliteFeedStoreOptions = {
 	path?: string;
@@ -20,6 +20,20 @@ type FeedPostRow = {
 	judge_confidence: number | null;
 	judge_reason: string | null;
 	judge_category: string | null;
+};
+
+type CandidateDecisionRow = {
+	uri: string;
+	cid: string;
+	text: string;
+	indexed_at: string | null;
+	judged_at: string;
+	accepted: number;
+	confidence: number;
+	score: number | null;
+	category: string | null;
+	reason: string | null;
+	matched_keywords_json: string | null;
 };
 
 const default_database_path = '.data/feed.sqlite';
@@ -102,9 +116,33 @@ export function create_sqlite_feed_store(
 		FROM feed_posts
 		WHERE
 			? IS NULL
-			OR accepted_at < ?
-			OR (accepted_at = ? AND cid < ?)
-		ORDER BY accepted_at DESC, cid DESC
+			OR COALESCE(score, 0) < ?
+			OR (
+				COALESCE(score, 0) = ?
+				AND (
+					accepted_at < ?
+					OR (accepted_at = ? AND cid < ?)
+				)
+			)
+		ORDER BY COALESCE(score, 0) DESC, accepted_at DESC, cid DESC
+		LIMIT ?
+	`);
+	const recent_decisions_statement = database.prepare(`
+		SELECT
+			uri,
+			cid,
+			text,
+			indexed_at,
+			judged_at,
+			accepted,
+			confidence,
+			score,
+			category,
+			reason,
+			matched_keywords_json
+		FROM candidate_decisions
+		WHERE ? IS NULL OR accepted = ?
+		ORDER BY judged_at DESC
 		LIMIT ?
 	`);
 	const delete_statement = database.prepare(`
@@ -162,10 +200,15 @@ export function create_sqlite_feed_store(
 		},
 		async get_feed_page({ before, limit }) {
 			const decoded_cursor = decode_feed_cursor(before);
+			const cursor_score = decoded_cursor
+				? (decoded_cursor.score ?? 0)
+				: null;
 			const cursor_accepted_at = decoded_cursor?.accepted_at ?? null;
 			const cursor_cid = decoded_cursor?.cid ?? null;
 			const rows = page_statement.all(
-				cursor_accepted_at,
+				cursor_score,
+				cursor_score,
+				cursor_score,
 				cursor_accepted_at,
 				cursor_accepted_at,
 				cursor_cid,
@@ -178,6 +221,16 @@ export function create_sqlite_feed_store(
 				posts,
 				cursor: last_post ? encode_feed_cursor(last_post) : undefined,
 			};
+		},
+		async get_recent_decisions({ limit, accepted }) {
+			const accepted_value =
+				accepted === undefined ? null : accepted ? 1 : 0;
+			const rows = recent_decisions_statement.all(
+				accepted_value,
+				accepted_value,
+				limit,
+			) as CandidateDecisionRow[];
+			return rows.map(row_to_candidate_decision);
 		},
 		async delete_older_than(cutoff_iso) {
 			const result = delete_statement.run(cutoff_iso);
@@ -238,6 +291,24 @@ function row_to_feed_post(row: FeedPostRow): FeedPost {
 		judge_confidence: row.judge_confidence ?? undefined,
 		judge_reason: row.judge_reason ?? undefined,
 		judge_category: row.judge_category ?? undefined,
+	});
+}
+
+function row_to_candidate_decision(
+	row: CandidateDecisionRow,
+): CandidateDecision {
+	return strip_undefined({
+		uri: row.uri,
+		cid: row.cid,
+		text: row.text,
+		indexed_at: row.indexed_at ?? undefined,
+		judged_at: row.judged_at,
+		accepted: row.accepted === 1,
+		confidence: row.confidence,
+		score: row.score ?? undefined,
+		category: row.category ?? undefined,
+		reason: row.reason ?? undefined,
+		matched_keywords: parse_keywords(row.matched_keywords_json),
 	});
 }
 

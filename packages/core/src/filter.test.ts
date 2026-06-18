@@ -54,4 +54,13 @@ describe('filter_candidate_post', () => {
 			reason: 'duplicate',
 		});
 	});
+
+	it('rejects obvious low-signal spam before paid judging', () => {
+		expect(
+			filter_candidate_post({
+				...base_post,
+				text: '🧠 Smart Money ACCUMULATED $10,266 of #TAO #Crypto #AI #DePIN',
+			}),
+		).toEqual({ accepted: false, reason: 'suppressed' });
+	});
 });

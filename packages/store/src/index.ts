@@ -26,6 +26,11 @@ export type FeedPage = {
 	cursor?: string;
 };
 
+export type ReviewCursor = {
+	limit: number;
+	accepted?: boolean;
+};
+
 export type CandidateDecision = {
 	uri: string;
 	cid: string;
@@ -44,6 +49,9 @@ export type FeedStore = {
 	put_posts(posts: FeedPost[]): Promise<void>;
 	put_decisions?(decisions: CandidateDecision[]): Promise<void>;
 	get_feed_page(cursor: FeedCursor): Promise<FeedPage>;
+	get_recent_decisions?(
+		cursor: ReviewCursor,
+	): Promise<CandidateDecision[]>;
 	delete_older_than(cutoff_iso: string): Promise<number>;
 	close?: () => void;
 };
@@ -76,6 +84,17 @@ export function create_memory_feed_store(
 				posts: page_posts,
 				cursor: last_post ? encode_feed_cursor(last_post) : undefined,
 			};
+		},
+		async get_recent_decisions({ limit, accepted }) {
+			return [...decisions_by_uri.values()]
+				.filter(
+					(decision) =>
+						accepted === undefined || decision.accepted === accepted,
+				)
+				.sort((left, right) =>
+					right.judged_at.localeCompare(left.judged_at),
+				)
+				.slice(0, limit);
 		},
 		async delete_older_than(cutoff_iso) {
 			let deleted_count = 0;

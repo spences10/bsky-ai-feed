@@ -49,6 +49,7 @@ describe('create_sqlite_feed_store', () => {
 		expect(decode_feed_cursor(first_page.cursor)).toEqual({
 			accepted_at: '2026-01-02T00:00:00.000Z',
 			cid: 'bafynew',
+			score: 0.91,
 		});
 
 		const second_page = await store.get_feed_page({

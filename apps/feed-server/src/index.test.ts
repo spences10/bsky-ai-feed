@@ -17,6 +17,7 @@ describe('create_service_status_body', () => {
 					'/xrpc/app.bsky.feed.describeFeedGenerator',
 				feed_skeleton:
 					'/xrpc/app.bsky.feed.getFeedSkeleton?feed=test',
+				ingest_api: '/api/ingest',
 			},
 		});
 	});

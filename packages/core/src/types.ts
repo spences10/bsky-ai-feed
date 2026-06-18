@@ -26,7 +26,8 @@ export type RejectionReason =
 	| 'non-english'
 	| 'duplicate'
 	| 'keyword-miss'
-	| 'too-short';
+	| 'too-short'
+	| 'suppressed';
 
 export type FilterResult =
 	| {

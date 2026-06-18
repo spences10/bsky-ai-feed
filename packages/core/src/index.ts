@@ -2,6 +2,7 @@ export {
 	filter_candidate_post,
 	find_ai_keywords,
 	is_likely_english,
+	is_suppressed_low_signal,
 	text_signature,
 } from './filter.js';
 export type { FilterOptions } from './filter.js';

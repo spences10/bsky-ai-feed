@@ -1,7 +1,9 @@
 #!/usr/bin/env node
+import type { FeedPost } from '@bsky-ai-feed/core';
 import {
 	create_memory_feed_store,
 	create_sqlite_feed_store,
+	type CandidateDecision,
 	type FeedStore,
 } from '@bsky-ai-feed/store';
 import {
@@ -9,6 +11,7 @@ import {
 	type IncomingMessage,
 	type ServerResponse,
 } from 'node:http';
+import { timingSafeEqual } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { load_dotenv } from './env.js';
@@ -39,6 +42,7 @@ export type ServiceStatusResponse = {
 		did: string;
 		describe_feed_generator: string;
 		feed_skeleton: string;
+		ingest_api: string;
 	};
 };
 
@@ -74,6 +78,7 @@ export function create_service_status_body(
 			describe_feed_generator:
 				'/xrpc/app.bsky.feed.describeFeedGenerator',
 			feed_skeleton: '/xrpc/app.bsky.feed.getFeedSkeleton?feed=test',
+			ingest_api: '/api/ingest',
 		},
 	};
 }
@@ -109,6 +114,11 @@ export function create_request_handler(
 				response,
 				await create_local_status_body(store, did),
 			);
+			return;
+		}
+
+		if (request_url.pathname === '/api/ingest') {
+			await handle_ingest_api(request, response, store);
 			return;
 		}
 
@@ -209,6 +219,221 @@ function read_ingest_status(): unknown {
 			message: 'ingest worker has not written status yet',
 		};
 	}
+}
+
+async function handle_ingest_api(
+	request: IncomingMessage,
+	response: ServerResponse,
+	store: FeedStore,
+): Promise<void> {
+	if (request.method !== 'POST') {
+		write_json(response, { error: 'method_not_allowed' }, 405);
+		return;
+	}
+	if (!is_authorized(request)) {
+		write_json(response, { error: 'unauthorized' }, 401);
+		return;
+	}
+
+	let body: unknown;
+	try {
+		body = JSON.parse(await read_request_body(request)) as unknown;
+	} catch {
+		write_json(response, { error: 'invalid_json' }, 400);
+		return;
+	}
+	if (!is_record(body) || typeof body.task !== 'string') {
+		write_json(response, { error: 'invalid_task' }, 400);
+		return;
+	}
+
+	try {
+		const result = await run_ingest_task(store, body.task, body.data);
+		write_json(response, result);
+	} catch (error) {
+		write_json(
+			response,
+			{
+				error: 'task_failed',
+				message: error instanceof Error ? error.message : 'unknown',
+			},
+			400,
+		);
+	}
+}
+
+async function run_ingest_task(
+	store: FeedStore,
+	task: string,
+	data: unknown,
+): Promise<unknown> {
+	if (task === 'put_posts') {
+		const posts = parse_posts(data);
+		await store.put_posts(posts);
+		return { ok: true, inserted: posts.length };
+	}
+	if (task === 'put_decisions') {
+		if (!store.put_decisions)
+			throw new Error('decisions unsupported');
+		const decisions = parse_decisions(data);
+		await store.put_decisions(decisions);
+		return { ok: true, inserted: decisions.length };
+	}
+	if (task === 'review_decisions') {
+		if (!store.get_recent_decisions) {
+			throw new Error('review unsupported');
+		}
+		const options = is_record(data) ? data : {};
+		return {
+			ok: true,
+			decisions: await store.get_recent_decisions({
+				limit: clamp_feed_limit(Number(options.limit ?? 25)),
+				accepted:
+					typeof options.accepted === 'boolean'
+						? options.accepted
+						: undefined,
+			}),
+		};
+	}
+	if (task === 'delete_older_than') {
+		if (!is_record(data) || typeof data.cutoff_iso !== 'string') {
+			throw new Error('cutoff_iso is required');
+		}
+		return {
+			ok: true,
+			deleted: await store.delete_older_than(data.cutoff_iso),
+		};
+	}
+	throw new Error('unknown task');
+}
+
+function parse_posts(data: unknown): FeedPost[] {
+	const rows = parse_rows(data, 'posts');
+	return rows.map((row) => {
+		if (
+			typeof row.uri !== 'string' ||
+			typeof row.cid !== 'string' ||
+			typeof row.accepted_at !== 'string'
+		) {
+			throw new Error('posts require uri, cid, accepted_at');
+		}
+		return strip_undefined({
+			uri: row.uri,
+			cid: row.cid,
+			accepted_at: row.accepted_at,
+			indexed_at: optional_string(row.indexed_at),
+			score: optional_number(row.score),
+			text: optional_string(row.text),
+			matched_keywords: optional_string_array(row.matched_keywords),
+			judge_confidence: optional_number(row.judge_confidence),
+			judge_reason: optional_string(row.judge_reason),
+			judge_category: optional_string(row.judge_category),
+		});
+	});
+}
+
+function parse_decisions(data: unknown): CandidateDecision[] {
+	const rows = parse_rows(data, 'decisions');
+	return rows.map((row) => {
+		if (
+			typeof row.uri !== 'string' ||
+			typeof row.cid !== 'string' ||
+			typeof row.text !== 'string' ||
+			typeof row.judged_at !== 'string' ||
+			typeof row.accepted !== 'boolean' ||
+			typeof row.confidence !== 'number'
+		) {
+			throw new Error(
+				'decisions require uri, cid, text, judged_at, accepted, confidence',
+			);
+		}
+		return strip_undefined({
+			uri: row.uri,
+			cid: row.cid,
+			text: row.text,
+			indexed_at: optional_string(row.indexed_at),
+			judged_at: row.judged_at,
+			accepted: row.accepted,
+			confidence: row.confidence,
+			score: optional_number(row.score),
+			category: optional_string(row.category),
+			reason: optional_string(row.reason),
+			matched_keywords: optional_string_array(row.matched_keywords),
+		});
+	});
+}
+
+function parse_rows(
+	data: unknown,
+	key: 'posts' | 'decisions',
+): Record<string, unknown>[] {
+	if (!is_record(data) || !Array.isArray(data[key])) {
+		throw new Error(`${key} array is required`);
+	}
+	if (!data[key].every(is_record)) {
+		throw new Error(`${key} must contain objects`);
+	}
+	return data[key];
+}
+
+function is_authorized(request: IncomingMessage): boolean {
+	const configured_token = process.env.INGEST_TOKEN;
+	if (!configured_token) return false;
+	const header = request.headers.authorization;
+	const token = header?.startsWith('Bearer ')
+		? header.slice('Bearer '.length)
+		: undefined;
+	if (!token) return false;
+	const left = Buffer.from(token);
+	const right = Buffer.from(configured_token);
+	return left.length === right.length && timingSafeEqual(left, right);
+}
+
+function read_request_body(
+	request: IncomingMessage,
+): Promise<string> {
+	return new Promise((resolve, reject) => {
+		let body = '';
+		request.setEncoding('utf8');
+		request.on('data', (chunk: string) => {
+			body += chunk;
+			if (body.length > 1_000_000) {
+				reject(new Error('request body too large'));
+				request.destroy();
+			}
+		});
+		request.on('end', () => resolve(body));
+		request.on('error', reject);
+	});
+}
+
+function optional_string(value: unknown): string | undefined {
+	return typeof value === 'string' ? value : undefined;
+}
+
+function optional_number(value: unknown): number | undefined {
+	return typeof value === 'number' && Number.isFinite(value)
+		? value
+		: undefined;
+}
+
+function optional_string_array(value: unknown): string[] | undefined {
+	return Array.isArray(value) &&
+		value.every((item) => typeof item === 'string')
+		? value
+		: undefined;
+}
+
+function strip_undefined<T extends Record<string, unknown>>(
+	value: T,
+): T {
+	return Object.fromEntries(
+		Object.entries(value).filter(([, entry]) => entry !== undefined),
+	) as T;
+}
+
+function is_record(value: unknown): value is Record<string, unknown> {
+	return typeof value === 'object' && value !== null;
 }
 
 function clamp_feed_limit(limit: number): number {

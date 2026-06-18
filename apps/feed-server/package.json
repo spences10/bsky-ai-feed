@@ -6,6 +6,7 @@
 	"license": "MIT",
 	"bin": {
 		"bsky-ai-feed-publish": "./dist/publish.js",
+		"bsky-ai-feed-review": "./dist/review.js",
 		"bsky-ai-feed-server": "./dist/index.js"
 	},
 	"type": "module",
@@ -16,6 +17,7 @@
 		"check:self": "vp check",
 		"dev": "tsx src/index.ts",
 		"publish:plan": "tsx src/publish.ts",
+		"review": "tsx src/review.ts",
 		"start": "node ./dist/index.js",
 		"test": "pnpm --filter \"$npm_package_name^...\" run build:self && pnpm run test:self",
 		"test:self": "vp test",

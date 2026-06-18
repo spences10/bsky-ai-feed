@@ -155,6 +155,13 @@ function parse_max_events(args: string[]): number | undefined {
 	return Number.isFinite(max_events) ? max_events : undefined;
 }
 
+function parse_optional_number(
+	value: string | undefined,
+): number | undefined {
+	const parsed = Number(value);
+	return Number.isFinite(parsed) ? parsed : undefined;
+}
+
 async function run_cli(args: string[]): Promise<void> {
 	load_dotenv();
 	if (args.includes('--help')) {
@@ -184,6 +191,12 @@ async function run_cli(args: string[]): Promise<void> {
 		max_events: parse_max_events(args),
 		store: create_default_store(),
 		judge,
+		judge_batch_size: parse_optional_number(
+			process.env.AI_JUDGE_BATCH_SIZE,
+		),
+		judge_batch_delay_ms: parse_optional_number(
+			process.env.AI_JUDGE_BATCH_DELAY_MS,
+		),
 		on_open: () => status.connected(),
 		on_result: (result) => status.record(result),
 		on_close: () => status.closed(),

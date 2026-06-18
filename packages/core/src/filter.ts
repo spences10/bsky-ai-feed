@@ -42,6 +42,10 @@ export function is_likely_english(post: CandidatePost): boolean {
 	return letters === 0 || ascii_letters / letters >= 0.8;
 }
 
+export function is_suppressed_low_signal(text: string): boolean {
+	return low_signal_patterns.some((pattern) => pattern.test(text));
+}
+
 export function filter_candidate_post(
 	post: CandidatePost,
 	options: FilterOptions = {},
@@ -62,6 +66,10 @@ export function filter_candidate_post(
 		return { accepted: false, reason: 'duplicate' };
 	}
 
+	if (is_suppressed_low_signal(post.text)) {
+		return { accepted: false, reason: 'suppressed' };
+	}
+
 	const matched_keywords = find_ai_keywords(
 		post.text,
 		options.keywords,
@@ -77,6 +85,20 @@ export function filter_candidate_post(
 	options.seen_text?.add(signature);
 	return { accepted: true, post, matched_keywords };
 }
+
+const low_signal_patterns = [
+	/#[A-Z0-9]*(?:Crypto|DePIN|AIJobs|Hiring)[A-Z0-9]*/iu,
+	/\bsmart money\s+(?:accumulated|dumped)\b/iu,
+	/\b(?:price|trend):\s*[$+\-0-9.]/iu,
+	/\btopgenaijobs\.com\b/iu,
+	/\b(?:AI|ML|GenAI)\s+(?:job|jobs|hiring)\b/iu,
+	/\brank in AI search results\b/iu,
+	/\bcontent repurposing playbook\b/iu,
+	/\b(?:read more|learn more)\s*[👉→]/iu,
+	/\b(?:zurl\.co|lttr\.ai)\//iu,
+	/\bcreated with\s+(?:AI|recraft\.ai)\b/iu,
+	/\bAI[- ]generated\)?\s*$/iu,
+] as const;
 
 function escape_regex(value: string): string {
 	return value.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');

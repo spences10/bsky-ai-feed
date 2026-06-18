@@ -15,8 +15,8 @@ technology.
   keywords, and judge metadata.
 - Store candidate decision audit rows so false positives and false
   negatives can be reviewed later.
-- Serve feed skeletons from stored URIs, newest first, with opaque
-  cursor pagination.
+- Serve feed skeletons from stored URIs, score first with recency
+  tiebreaking, and opaque cursor pagination.
 
 ## Workspace layout
 
@@ -68,6 +68,27 @@ at:
 ```sh
 curl 'http://localhost:3000/xrpc/app.bsky.feed.getFeedSkeleton?feed=test'
 ```
+
+Review recent judge decisions:
+
+```sh
+pnpm run review -- --limit=25
+pnpm run review -- --accepted
+pnpm run review -- --rejected
+```
+
+Production deployments can expose the authenticated ingest task API
+for DB updates from curl or cron jobs. Set `INGEST_TOKEN`, then call:
+
+```sh
+curl -X POST "$FEEDGEN_SERVICE_URL/api/ingest" \
+  -H "authorization: Bearer $INGEST_TOKEN" \
+  -H 'content-type: application/json' \
+  -d '{"task":"review_decisions","data":{"limit":10}}'
+```
+
+Supported tasks: `put_posts`, `put_decisions`, `review_decisions`, and
+`delete_older_than`.
 
 For production-style runs after building:
 

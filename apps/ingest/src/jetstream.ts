@@ -21,6 +21,8 @@ export type JetstreamRunOptions = {
 	judge?: Judge;
 	confidence_threshold?: number;
 	quality_threshold?: number;
+	judge_batch_size?: number;
+	judge_batch_delay_ms?: number;
 	max_events?: number;
 	seen_text?: Set<string>;
 	log?: (message: string) => void;
@@ -49,6 +51,22 @@ type JetstreamCommitEvent = {
 		};
 	};
 };
+
+type PrefilteredCandidate = {
+	post: CandidatePost;
+	matched_keywords: string[];
+};
+
+type PrefilterResult =
+	| {
+			kind: 'ignored';
+	  }
+	| {
+			kind: 'rejected';
+			post: CandidatePost;
+			reason: string;
+	  }
+	| ({ kind: 'candidate' } & PrefilteredCandidate);
 
 export type JetstreamMessageResult =
 	| {
@@ -118,6 +136,191 @@ export async function process_jetstream_message(
 		| 'quality_threshold'
 	>,
 ): Promise<JetstreamMessageResult> {
+	const prefiltered = prefilter_jetstream_message(message, options);
+	if (prefiltered.kind !== 'candidate') return prefiltered;
+	const [result] = await process_prefiltered_candidates(
+		[prefiltered],
+		options,
+	);
+	return result ?? { kind: 'ignored' };
+}
+
+export async function process_prefiltered_candidates(
+	candidates: PrefilteredCandidate[],
+	options: Pick<
+		JetstreamRunOptions,
+		'store' | 'judge' | 'confidence_threshold' | 'quality_threshold'
+	>,
+): Promise<JetstreamMessageResult[]> {
+	if (candidates.length === 0) return [];
+	const judged_at = new Date().toISOString();
+	const decisions = options.judge
+		? await options.judge.judge_batch({
+				posts: candidates.map(({ post }) => post),
+				prompt: ai_technology_prompt,
+			})
+		: [];
+	const decisions_by_uri = new Map(
+		decisions.map((decision) => [decision.uri, decision]),
+	);
+	const candidate_decisions: CandidateDecision[] = [];
+	const accepted_posts: FeedPost[] = [];
+	const results = candidates.map(({ post, matched_keywords }) => {
+		const decision = decisions_by_uri.get(post.uri);
+		const accepted = options.judge
+			? decision_is_accepted(decision, options)
+			: true;
+		if (options.judge) {
+			candidate_decisions.push({
+				uri: post.uri,
+				cid: post.cid,
+				text: post.text,
+				indexed_at: post.indexed_at,
+				judged_at,
+				accepted,
+				confidence: decision?.confidence ?? 0,
+				score: decision?.score ?? 0,
+				category: decision?.category,
+				reason: decision?.reason,
+				matched_keywords,
+			});
+		}
+		if (!accepted) {
+			return {
+				kind: 'rejected',
+				post,
+				reason: decision?.reason ?? 'ai-judge-rejected',
+			} satisfies JetstreamMessageResult;
+		}
+		const accepted_post: FeedPost = {
+			uri: post.uri,
+			cid: post.cid,
+			accepted_at: judged_at,
+			indexed_at: post.indexed_at,
+			score: decision?.score,
+			text: post.text,
+			matched_keywords,
+			judge_confidence: decision?.confidence,
+			judge_reason: decision?.reason,
+			judge_category: decision?.category,
+		};
+		accepted_posts.push(accepted_post);
+		return {
+			kind: 'accepted',
+			post: accepted_post,
+		} satisfies JetstreamMessageResult;
+	});
+	await options.store?.put_decisions?.(candidate_decisions);
+	await options.store?.put_posts(accepted_posts);
+	return results;
+}
+
+export async function run_jetstream(
+	options: JetstreamRunOptions,
+): Promise<void> {
+	const log = options.log ?? console.log;
+	const seen_text = options.seen_text ?? new Set<string>();
+	const url = create_jetstream_url(options.host);
+	const socket = new WebSocket(url);
+	const candidate_buffer: PrefilteredCandidate[] = [];
+	const judge_batch_size = options.judge_batch_size ?? 10;
+	const judge_batch_delay_ms = options.judge_batch_delay_ms ?? 1000;
+	let flush_timer: NodeJS.Timeout | undefined;
+	let processed_events = 0;
+	let closed_for_limit = false;
+	let flush_chain = Promise.resolve();
+
+	await new Promise<void>((resolve, reject) => {
+		function emit(result: JetstreamMessageResult): void {
+			options.on_result?.(result);
+			if (result.kind === 'ignored') return;
+
+			processed_events += 1;
+			log(format_result(result));
+
+			if (
+				!closed_for_limit &&
+				options.max_events &&
+				processed_events >= options.max_events
+			) {
+				closed_for_limit = true;
+				socket.close();
+			}
+		}
+
+		function schedule_flush(): void {
+			if (!options.judge) {
+				void flush_candidates();
+				return;
+			}
+			if (candidate_buffer.length >= judge_batch_size) {
+				void flush_candidates();
+				return;
+			}
+			flush_timer ??= setTimeout(() => {
+				flush_timer = undefined;
+				void flush_candidates();
+			}, judge_batch_delay_ms);
+		}
+
+		function flush_candidates(): Promise<void> {
+			if (flush_timer) {
+				clearTimeout(flush_timer);
+				flush_timer = undefined;
+			}
+			const batch = candidate_buffer.splice(0, judge_batch_size);
+			if (batch.length === 0) return flush_chain;
+			flush_chain = flush_chain.then(async () => {
+				const results = await process_prefiltered_candidates(batch, {
+					...options,
+				});
+				for (const result of results) emit(result);
+			});
+			return flush_chain;
+		}
+
+		socket.addEventListener('open', () => {
+			log(`connected ${url}`);
+			options.on_open?.();
+		});
+
+		socket.addEventListener('message', (event) => {
+			void (async () => {
+				const result = prefilter_jetstream_message(
+					await message_data_to_string(event.data),
+					{ ...options, seen_text },
+				);
+				if (result.kind !== 'candidate') {
+					emit(result);
+					return;
+				}
+				candidate_buffer.push(result);
+				schedule_flush();
+			})().catch((error: unknown) => {
+				socket.close();
+				reject(error);
+			});
+		});
+
+		socket.addEventListener('error', () => {
+			reject(new Error('Jetstream websocket error'));
+		});
+
+		socket.addEventListener('close', () => {
+			void flush_candidates()
+				.then(() => {
+					options.on_close?.();
+					resolve();
+				})
+				.catch(reject);
+		});
+	});
+}
+
+function prefilter_jetstream_message(
+	message: string,
+	options: Pick<JetstreamRunOptions, 'seen_text'>,
+): PrefilterResult {
 	const event = JSON.parse(message) as unknown;
 	const post = candidate_post_from_jetstream_event(event);
 	if (!post) return { kind: 'ignored' };
@@ -131,105 +334,11 @@ export async function process_jetstream_message(
 			reason: filter_result.reason,
 		};
 	}
-
-	const judged_at = new Date().toISOString();
-	let accepted_post: FeedPost = {
-		uri: post.uri,
-		cid: post.cid,
-		accepted_at: judged_at,
-		indexed_at: post.indexed_at,
-		text: post.text,
+	return {
+		kind: 'candidate',
+		post,
 		matched_keywords: filter_result.matched_keywords,
 	};
-
-	if (options.judge) {
-		const [decision] = await options.judge.judge_batch({
-			posts: [post],
-			prompt: ai_technology_prompt,
-		});
-		const accepted = decision_is_accepted(decision, options);
-		const candidate_decision: CandidateDecision = {
-			uri: post.uri,
-			cid: post.cid,
-			text: post.text,
-			indexed_at: post.indexed_at,
-			judged_at,
-			accepted,
-			confidence: decision?.confidence ?? 0,
-			score: decision?.score ?? 0,
-			category: decision?.category,
-			reason: decision?.reason,
-			matched_keywords: filter_result.matched_keywords,
-		};
-		await options.store?.put_decisions?.([candidate_decision]);
-		if (!accepted) {
-			return {
-				kind: 'rejected',
-				post,
-				reason: decision?.reason ?? 'ai-judge-rejected',
-			};
-		}
-		accepted_post = {
-			...accepted_post,
-			score: decision?.score,
-			judge_confidence: decision?.confidence,
-			judge_reason: decision?.reason,
-			judge_category: decision?.category,
-		};
-	}
-
-	await options.store?.put_posts([accepted_post]);
-	return { kind: 'accepted', post: accepted_post };
-}
-
-export async function run_jetstream(
-	options: JetstreamRunOptions,
-): Promise<void> {
-	const log = options.log ?? console.log;
-	const seen_text = options.seen_text ?? new Set<string>();
-	const url = create_jetstream_url(options.host);
-	const socket = new WebSocket(url);
-	let processed_events = 0;
-
-	await new Promise<void>((resolve, reject) => {
-		socket.addEventListener('open', () => {
-			log(`connected ${url}`);
-			options.on_open?.();
-		});
-
-		socket.addEventListener('message', (event) => {
-			void (async () => {
-				const result = await process_jetstream_message(
-					await message_data_to_string(event.data),
-					{ ...options, seen_text },
-				);
-				options.on_result?.(result);
-				if (result.kind === 'ignored') return;
-
-				processed_events += 1;
-				log(format_result(result));
-
-				if (
-					options.max_events &&
-					processed_events >= options.max_events
-				) {
-					socket.close();
-				}
-			})().catch((error: unknown) => {
-				socket.close();
-				reject(error);
-			});
-		});
-
-		socket.addEventListener('error', () => {
-			reject(new Error('Jetstream websocket error'));
-		});
-
-		socket.addEventListener('close', () => {
-			options.on_close?.();
-			resolve();
-		});
-	});
 }
 
 function decision_is_accepted(
