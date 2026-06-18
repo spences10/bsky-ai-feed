@@ -1,6 +1,24 @@
 import { create_memory_feed_store } from '@bsky-ai-feed/store';
 import { describe, expect, it } from 'vitest';
-import { create_feed_skeleton_body } from './index.js';
+import {
+	create_feed_skeleton_body,
+	create_service_status_body,
+} from './index.js';
+
+describe('create_service_status_body', () => {
+	it('describes browser-friendly local endpoints', () => {
+		expect(create_service_status_body('did:web:localhost')).toEqual({
+			service: 'bsky-ai-feed',
+			status: 'ok',
+			did: 'did:web:localhost',
+			endpoints: {
+				did: '/.well-known/did.json',
+				feed_skeleton:
+					'/xrpc/app.bsky.feed.getFeedSkeleton?feed=test',
+			},
+		});
+	});
+});
 
 describe('create_feed_skeleton_body', () => {
 	it('serializes stored posts into getFeedSkeleton shape', async () => {

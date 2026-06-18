@@ -10,6 +10,6 @@
 		"declaration": true,
 		"declarationMap": true,
 		"sourceMap": true,
-		"types": ["node", "vitest/globals"],
-	},
+		"types": ["node", "vitest/globals"]
+	}
 }

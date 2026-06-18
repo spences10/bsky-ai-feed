@@ -28,6 +28,16 @@ export type FeedServerOptions = {
 	use_memory_store?: boolean;
 };
 
+export type ServiceStatusResponse = {
+	service: string;
+	status: 'ok';
+	did: string;
+	endpoints: {
+		did: string;
+		feed_skeleton: string;
+	};
+};
+
 export async function create_feed_skeleton_body(
 	store: FeedStore,
 	cursor: string | undefined,
@@ -43,6 +53,20 @@ export async function create_feed_skeleton_body(
 	};
 }
 
+export function create_service_status_body(
+	did: string,
+): ServiceStatusResponse {
+	return {
+		service: 'bsky-ai-feed',
+		status: 'ok',
+		did,
+		endpoints: {
+			did: '/.well-known/did.json',
+			feed_skeleton: '/xrpc/app.bsky.feed.getFeedSkeleton?feed=test',
+		},
+	};
+}
+
 export function create_request_handler(
 	store: FeedStore,
 	did = process.env.FEEDGEN_DID ?? 'did:web:localhost',
@@ -55,6 +79,11 @@ export function create_request_handler(
 			request.url ?? '/',
 			'http://localhost',
 		);
+
+		if (request_url.pathname === '/') {
+			write_json(response, create_service_status_body(did));
+			return;
+		}
 
 		if (request_url.pathname === '/.well-known/did.json') {
 			write_json(response, {
