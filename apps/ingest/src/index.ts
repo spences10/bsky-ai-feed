@@ -185,22 +185,52 @@ async function run_cli(args: string[]): Promise<void> {
 		process.env.AI_JUDGE_PROVIDER === 'openai'
 			? create_configured_judge()
 			: undefined;
-	await run_jetstream({
-		mode: 'ingest',
-		host: process.env.JETSTREAM_HOST,
-		max_events: parse_max_events(args),
-		store: create_default_store(),
-		judge,
-		judge_batch_size: parse_optional_number(
-			process.env.AI_JUDGE_BATCH_SIZE,
-		),
-		judge_batch_delay_ms: parse_optional_number(
-			process.env.AI_JUDGE_BATCH_DELAY_MS,
-		),
-		on_open: () => status.connected(),
-		on_result: (result) => status.record(result),
-		on_close: () => status.closed(),
-	});
+	const max_events = parse_max_events(args);
+	const seen_text = new Set<string>();
+	let retry_delay_ms = 1000;
+
+	while (true) {
+		try {
+			await run_jetstream({
+				mode: 'ingest',
+				host: process.env.JETSTREAM_HOST,
+				max_events,
+				store: create_default_store(),
+				judge,
+				seen_text,
+				judge_batch_size: parse_optional_number(
+					process.env.AI_JUDGE_BATCH_SIZE,
+				),
+				judge_batch_delay_ms: parse_optional_number(
+					process.env.AI_JUDGE_BATCH_DELAY_MS,
+				),
+				on_open: () => {
+					retry_delay_ms = 1000;
+					status.connected();
+				},
+				on_result: (result) => status.record(result),
+				on_close: () => status.closed(),
+			});
+			if (max_events) return;
+			console.warn(
+				`Jetstream closed; reconnecting in ${retry_delay_ms}ms`,
+			);
+		} catch (error) {
+			console.error(
+				`Jetstream disconnected: ${error_message(error)}; reconnecting in ${retry_delay_ms}ms`,
+			);
+		}
+		await sleep(retry_delay_ms);
+		retry_delay_ms = Math.min(retry_delay_ms * 2, 30_000);
+	}
+}
+
+function sleep(ms: number): Promise<void> {
+	return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function error_message(error: unknown): string {
+	return error instanceof Error ? error.message : String(error);
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
