@@ -39,11 +39,17 @@ export type ServiceStatusResponse = {
 	status: 'ok';
 	did: string;
 	endpoints: {
+		health: string;
 		did: string;
 		describe_feed_generator: string;
 		feed_skeleton: string;
 		ingest_api: string;
 	};
+};
+
+export type HealthResponse = {
+	status: 'ok';
+	service: string;
 };
 
 export type LocalStatusResponse = ServiceStatusResponse & {
@@ -66,6 +72,13 @@ export async function create_feed_skeleton_body(
 	};
 }
 
+export function create_health_body(): HealthResponse {
+	return {
+		status: 'ok',
+		service: 'bsky-ai-feed',
+	};
+}
+
 export function create_service_status_body(
 	did: string,
 ): ServiceStatusResponse {
@@ -74,6 +87,7 @@ export function create_service_status_body(
 		status: 'ok',
 		did,
 		endpoints: {
+			health: '/health',
 			did: '/.well-known/did.json',
 			describe_feed_generator:
 				'/xrpc/app.bsky.feed.describeFeedGenerator',
@@ -114,6 +128,11 @@ export function create_request_handler(
 				response,
 				await create_local_status_body(store, did),
 			);
+			return;
+		}
+
+		if (request_url.pathname === '/health') {
+			write_json(response, create_health_body());
 			return;
 		}
 

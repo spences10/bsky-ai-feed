@@ -2,6 +2,7 @@ import { create_memory_feed_store } from '@bsky-ai-feed/store';
 import { describe, expect, it } from 'vitest';
 import {
 	create_feed_skeleton_body,
+	create_health_body,
 	create_service_status_body,
 } from './index.js';
 
@@ -12,6 +13,7 @@ describe('create_service_status_body', () => {
 			status: 'ok',
 			did: 'did:web:localhost',
 			endpoints: {
+				health: '/health',
 				did: '/.well-known/did.json',
 				describe_feed_generator:
 					'/xrpc/app.bsky.feed.describeFeedGenerator',
@@ -19,6 +21,15 @@ describe('create_service_status_body', () => {
 					'/xrpc/app.bsky.feed.getFeedSkeleton?feed=test',
 				ingest_api: '/api/ingest',
 			},
+		});
+	});
+});
+
+describe('create_health_body', () => {
+	it('returns a small health payload for platform probes', () => {
+		expect(create_health_body()).toEqual({
+			status: 'ok',
+			service: 'bsky-ai-feed',
 		});
 	});
 });
