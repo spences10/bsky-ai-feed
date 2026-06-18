@@ -13,7 +13,8 @@
 		"test": "pnpm --filter \"./packages/*\" --filter \"./apps/*\" run test",
 		"test:watch": "pnpm --parallel --filter \"./packages/*\" --filter \"./apps/*\" run test:watch",
 		"dev:ingest": "pnpm --filter @bsky-ai-feed/ingest dev",
-		"dev:feed": "pnpm --filter @bsky-ai-feed/feed-server dev"
+		"dev:feed": "pnpm --filter @bsky-ai-feed/feed-server dev",
+		"ingest": "pnpm --filter @bsky-ai-feed/ingest start"
 	},
 	"devDependencies": {
 		"@types/node": "catalog:",

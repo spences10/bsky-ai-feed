@@ -21,8 +21,8 @@ technology.
 - `packages/judge` — AI judge interface and prompt contract.
 - `packages/store` — feed storage interface, in-memory test store, and
   `node:sqlite` store.
-- `apps/ingest` — Jetstream ingest pipeline skeleton.
-- `apps/feed-server` — HTTP feed generator skeleton.
+- `apps/ingest` — Jetstream ingest worker for keyword-filtered posts.
+- `apps/feed-server` — HTTP feed generator.
 
 ## Research notes
 
@@ -49,4 +49,21 @@ cp .env.example .env
 pnpm run check
 pnpm run test
 pnpm run build
+```
+
+Run the feed server and live ingest worker against the shared SQLite
+database:
+
+```sh
+pnpm run dev:feed
+pnpm run dev:ingest -- --max=10
+curl http://localhost:3000/
+curl 'http://localhost:3000/xrpc/app.bsky.feed.getFeedSkeleton?feed=test'
+```
+
+For production-style runs after building:
+
+```sh
+pnpm run build
+pnpm run ingest
 ```

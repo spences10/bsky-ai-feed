@@ -14,6 +14,19 @@ import {
 	type FeedStore,
 } from '@bsky-ai-feed/store';
 import { fileURLToPath } from 'node:url';
+import { create_jetstream_url, run_jetstream } from './jetstream.js';
+
+export {
+	candidate_post_from_jetstream_event,
+	create_jetstream_url,
+	process_jetstream_message,
+	run_jetstream,
+} from './jetstream.js';
+export type {
+	JetstreamMessageResult,
+	JetstreamRunMode,
+	JetstreamRunOptions,
+} from './jetstream.js';
 
 export type IngestPipelineOptions = {
 	judge?: Judge;
@@ -83,16 +96,43 @@ function default_database_path(): string {
 	);
 }
 
-export function create_jetstream_url(
-	host = 'jetstream2.us-east.bsky.network',
-): string {
-	const url = new URL(`wss://${host}/subscribe`);
-	url.searchParams.set('wantedCollections', 'app.bsky.feed.post');
-	return url.toString();
+function create_default_store(): FeedStore {
+	return create_sqlite_feed_store({
+		path: process.env.BSKY_AI_FEED_DB_PATH ?? default_database_path(),
+	});
+}
+
+function parse_max_events(args: string[]): number | undefined {
+	const max_arg = args.find((arg) => arg.startsWith('--max='));
+	if (!max_arg) return undefined;
+	const max_events = Number(max_arg.slice('--max='.length));
+	return Number.isFinite(max_events) ? max_events : undefined;
+}
+
+async function run_cli(args: string[]): Promise<void> {
+	if (args.includes('--help')) {
+		console.log(
+			[
+				'Usage: pnpm run dev:ingest -- --max=10',
+				'',
+				'Environment:',
+				'  JETSTREAM_HOST defaults to jetstream2.us-east.bsky.network',
+				'  BSKY_AI_FEED_DB_PATH overrides .data/feed.sqlite',
+				'',
+				`Jetstream URL: ${create_jetstream_url(process.env.JETSTREAM_HOST)}`,
+			].join('\n'),
+		);
+		return;
+	}
+
+	await run_jetstream({
+		mode: 'ingest',
+		host: process.env.JETSTREAM_HOST,
+		max_events: parse_max_events(args),
+		store: create_default_store(),
+	});
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-	console.log(
-		`Ingest worker skeleton ready. Jetstream URL: ${create_jetstream_url()}`,
-	);
+	await run_cli(process.argv.slice(2));
 }
