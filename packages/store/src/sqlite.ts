@@ -1,7 +1,7 @@
 import type { FeedPost } from '@bsky-ai-feed/core';
 import { mkdirSync, readFileSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { DatabaseSync } from 'node:sqlite';
+import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
 import { decode_feed_cursor, encode_feed_cursor } from './cursor.js';
 import type { CandidateDecision, FeedStore } from './index.js';
 
@@ -198,6 +198,28 @@ export function create_sqlite_feed_store(
 				throw error;
 			}
 		},
+		async run_query(query, params) {
+			const trimmed = query.trimStart().toUpperCase();
+			const statement = database.prepare(query);
+			const values = to_sql_values(params);
+			if (
+				trimmed.startsWith('SELECT') ||
+				trimmed.startsWith('PRAGMA') ||
+				trimmed.startsWith('EXPLAIN')
+			) {
+				const rows = statement.all(...values) as Record<
+					string,
+					unknown
+				>[];
+				return { type: 'read', rows, count: rows.length };
+			}
+			const result = statement.run(...values);
+			return {
+				type: 'write',
+				changes: Number(result.changes),
+				last_insert_rowid: Number(result.lastInsertRowid),
+			};
+		},
 		async get_feed_page({ before, limit }) {
 			const decoded_cursor = decode_feed_cursor(before);
 			const cursor_score = decoded_cursor
@@ -314,6 +336,15 @@ function row_to_candidate_decision(
 
 function json_or_null(value: string[] | undefined): string | null {
 	return value ? JSON.stringify(value) : null;
+}
+
+function to_sql_values(
+	params: readonly (string | number | boolean | null)[] | undefined,
+): SQLInputValue[] {
+	return (params ?? []).map((value) => {
+		if (typeof value === 'boolean') return value ? 1 : 0;
+		return value;
+	});
 }
 
 function parse_keywords(value: string | null): string[] | undefined {

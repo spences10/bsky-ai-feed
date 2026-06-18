@@ -5,6 +5,7 @@ import {
 	create_sqlite_feed_store,
 	type CandidateDecision,
 	type FeedStore,
+	type QueryParam,
 } from '@bsky-ai-feed/store';
 import {
 	createServer,
@@ -371,6 +372,14 @@ async function run_ingest_task(
 		await store.put_decisions(decisions);
 		return { ok: true, inserted: decisions.length };
 	}
+	if (task === 'run_query') {
+		if (!store.run_query) throw new Error('query unsupported');
+		const { query, params } = parse_query(data);
+		return {
+			ok: true,
+			...(await store.run_query(query, params)),
+		};
+	}
 	if (task === 'review_decisions') {
 		if (!store.get_recent_decisions) {
 			throw new Error('review unsupported');
@@ -422,6 +431,34 @@ function parse_posts(data: unknown): FeedPost[] {
 			judge_category: optional_string(row.judge_category),
 		});
 	});
+}
+
+function parse_query(data: unknown): {
+	query: string;
+	params?: QueryParam[];
+} {
+	if (!is_record(data) || typeof data.query !== 'string') {
+		throw new Error('query is required');
+	}
+	if (data.params === undefined) return { query: data.query };
+	if (!Array.isArray(data.params)) {
+		throw new Error('params must be an array');
+	}
+	if (!data.params.every(is_query_param)) {
+		throw new Error(
+			'params must be strings, numbers, booleans, or null',
+		);
+	}
+	return { query: data.query, params: data.params };
+}
+
+function is_query_param(value: unknown): value is QueryParam {
+	return (
+		value === null ||
+		typeof value === 'string' ||
+		(typeof value === 'number' && Number.isFinite(value)) ||
+		typeof value === 'boolean'
+	);
 }
 
 function parse_decisions(data: unknown): CandidateDecision[] {

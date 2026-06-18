@@ -1,4 +1,8 @@
-import { create_memory_feed_store } from '@bsky-ai-feed/store';
+import {
+	create_memory_feed_store,
+	create_sqlite_feed_store,
+	type FeedStore,
+} from '@bsky-ai-feed/store';
 import { createServer, type Server } from 'node:http';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
@@ -11,6 +15,7 @@ import {
 const servers: Server[] = [];
 
 afterEach(async () => {
+	delete process.env.INGEST_TOKEN;
 	await Promise.all(
 		servers.splice(0).map(
 			(server) =>
@@ -129,8 +134,71 @@ describe('create_request_handler', () => {
 		expect(await response.json()).toEqual({ feed: [] });
 	});
 
-	async function request(path: string, init?: RequestInit) {
-		const store = create_memory_feed_store();
+	it('runs authenticated parameterized ingest queries', async () => {
+		process.env.INGEST_TOKEN = 'test-token';
+		const store = create_sqlite_feed_store({ path: ':memory:' });
+
+		const insert = await request(
+			'/api/ingest',
+			{
+				method: 'POST',
+				headers: {
+					authorization: 'Bearer test-token',
+					'content-type': 'application/json',
+				},
+				body: JSON.stringify({
+					task: 'run_query',
+					data: {
+						query:
+							'INSERT INTO feed_posts (uri, cid, accepted_at) VALUES (?, ?, ?)',
+						params: [
+							'at://did:example/app.bsky.feed.post/1',
+							'bafy1',
+							'2026-01-01T00:00:00.000Z',
+						],
+					},
+				}),
+			},
+			store,
+		);
+		expect(await insert.json()).toMatchObject({
+			ok: true,
+			type: 'write',
+			changes: 1,
+		});
+
+		const select = await request(
+			'/api/ingest',
+			{
+				method: 'POST',
+				headers: {
+					authorization: 'Bearer test-token',
+					'content-type': 'application/json',
+				},
+				body: JSON.stringify({
+					task: 'run_query',
+					data: {
+						query: 'SELECT uri FROM feed_posts WHERE cid = ?',
+						params: ['bafy1'],
+					},
+				}),
+			},
+			store,
+		);
+		expect(await select.json()).toEqual({
+			ok: true,
+			type: 'read',
+			rows: [{ uri: 'at://did:example/app.bsky.feed.post/1' }],
+			count: 1,
+		});
+		store.close?.();
+	});
+
+	async function request(
+		path: string,
+		init?: RequestInit,
+		store: FeedStore = create_memory_feed_store(),
+	) {
 		const server = createServer(
 			create_request_handler(store, 'did:web:localhost', feed_uri),
 		);

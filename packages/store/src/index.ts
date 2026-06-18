@@ -45,9 +45,27 @@ export type CandidateDecision = {
 	matched_keywords?: string[];
 };
 
+export type QueryParam = string | number | boolean | null;
+
+export type QueryResult =
+	| {
+			type: 'read';
+			rows: Record<string, unknown>[];
+			count: number;
+	  }
+	| {
+			type: 'write';
+			changes: number;
+			last_insert_rowid: number;
+	  };
+
 export type FeedStore = {
 	put_posts(posts: FeedPost[]): Promise<void>;
 	put_decisions?(decisions: CandidateDecision[]): Promise<void>;
+	run_query?(
+		query: string,
+		params?: QueryParam[],
+	): Promise<QueryResult>;
 	get_feed_page(cursor: FeedCursor): Promise<FeedPage>;
 	get_recent_decisions?(
 		cursor: ReviewCursor,
