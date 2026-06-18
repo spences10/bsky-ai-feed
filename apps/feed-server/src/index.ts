@@ -9,7 +9,9 @@ import {
 	type IncomingMessage,
 	type ServerResponse,
 } from 'node:http';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { load_dotenv } from './env.js';
 
 export type SkeletonFeedPost = {
 	post: string;
@@ -24,6 +26,7 @@ export type FeedServerOptions = {
 	store?: FeedStore;
 	port?: number;
 	did?: string;
+	feed_uri?: string;
 	database_path?: string;
 	use_memory_store?: boolean;
 };
@@ -34,8 +37,14 @@ export type ServiceStatusResponse = {
 	did: string;
 	endpoints: {
 		did: string;
+		describe_feed_generator: string;
 		feed_skeleton: string;
 	};
+};
+
+export type LocalStatusResponse = ServiceStatusResponse & {
+	ingest: unknown;
+	feed: FeedSkeletonResponse;
 };
 
 export async function create_feed_skeleton_body(
@@ -62,14 +71,29 @@ export function create_service_status_body(
 		did,
 		endpoints: {
 			did: '/.well-known/did.json',
+			describe_feed_generator:
+				'/xrpc/app.bsky.feed.describeFeedGenerator',
 			feed_skeleton: '/xrpc/app.bsky.feed.getFeedSkeleton?feed=test',
 		},
+	};
+}
+
+export async function create_local_status_body(
+	store: FeedStore,
+	did: string,
+): Promise<LocalStatusResponse> {
+	return {
+		...create_service_status_body(did),
+		ingest: read_ingest_status(),
+		feed: await create_feed_skeleton_body(store, undefined, 25),
 	};
 }
 
 export function create_request_handler(
 	store: FeedStore,
 	did = process.env.FEEDGEN_DID ?? 'did:web:localhost',
+	feed_uri = process.env.BSKY_FEED_URI ??
+		'at://did:example:publisher/app.bsky.feed.generator/ai-feed',
 ) {
 	return async function handle_request(
 		request: IncomingMessage,
@@ -81,7 +105,10 @@ export function create_request_handler(
 		);
 
 		if (request_url.pathname === '/') {
-			write_json(response, create_service_status_body(did));
+			write_json(
+				response,
+				await create_local_status_body(store, did),
+			);
 			return;
 		}
 
@@ -89,7 +116,26 @@ export function create_request_handler(
 			write_json(response, {
 				'@context': ['https://www.w3.org/ns/did/v1'],
 				id: did,
-				service: [],
+				service: [
+					{
+						id: '#bsky_fg',
+						type: 'BskyFeedGenerator',
+						serviceEndpoint:
+							process.env.FEEDGEN_SERVICE_URL ??
+							'http://localhost:3000',
+					},
+				],
+			});
+			return;
+		}
+
+		if (
+			request_url.pathname ===
+			'/xrpc/app.bsky.feed.describeFeedGenerator'
+		) {
+			write_json(response, {
+				did,
+				feeds: [{ uri: feed_uri }],
 			});
 			return;
 		}
@@ -128,7 +174,7 @@ export function start_feed_server(options: FeedServerOptions = {}) {
 	const store = create_default_feed_store(options);
 	const port = options.port ?? Number(process.env.PORT ?? 3000);
 	const server = createServer(
-		create_request_handler(store, options.did),
+		create_request_handler(store, options.did, options.feed_uri),
 	);
 	server.on('close', () => store.close?.());
 	server.listen(port, () => {
@@ -141,6 +187,28 @@ function default_database_path(): string {
 	return fileURLToPath(
 		new URL('../../../.data/feed.sqlite', import.meta.url),
 	);
+}
+
+function default_status_path(): string {
+	return fileURLToPath(
+		new URL('../../../.data/ingest-status.json', import.meta.url),
+	);
+}
+
+function read_ingest_status(): unknown {
+	try {
+		return JSON.parse(
+			readFileSync(
+				process.env.BSKY_AI_FEED_STATUS_PATH ?? default_status_path(),
+				'utf8',
+			),
+		) as unknown;
+	} catch {
+		return {
+			connected: false,
+			message: 'ingest worker has not written status yet',
+		};
+	}
 }
 
 function clamp_feed_limit(limit: number): number {
@@ -160,5 +228,6 @@ function write_json(
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
+	load_dotenv();
 	start_feed_server();
 }

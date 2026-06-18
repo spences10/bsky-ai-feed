@@ -12,9 +12,11 @@
 		"format": "vp check --fix",
 		"test": "pnpm --filter \"./packages/*\" --filter \"./apps/*\" run test",
 		"test:watch": "pnpm --parallel --filter \"./packages/*\" --filter \"./apps/*\" run test:watch",
+		"dev": "bash -c 'trap \"kill 0\" EXIT; pnpm run dev:feed & pnpm run dev:ingest & wait'",
 		"dev:ingest": "pnpm --filter @bsky-ai-feed/ingest dev",
 		"dev:feed": "pnpm --filter @bsky-ai-feed/feed-server dev",
-		"ingest": "pnpm --filter @bsky-ai-feed/ingest start"
+		"ingest": "pnpm --filter @bsky-ai-feed/ingest start",
+		"publish:plan": "pnpm --filter @bsky-ai-feed/feed-server publish:plan"
 	},
 	"devDependencies": {
 		"@types/node": "catalog:",

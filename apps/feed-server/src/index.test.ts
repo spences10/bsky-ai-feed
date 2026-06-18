@@ -13,6 +13,8 @@ describe('create_service_status_body', () => {
 			did: 'did:web:localhost',
 			endpoints: {
 				did: '/.well-known/did.json',
+				describe_feed_generator:
+					'/xrpc/app.bsky.feed.describeFeedGenerator',
 				feed_skeleton:
 					'/xrpc/app.bsky.feed.getFeedSkeleton?feed=test',
 			},

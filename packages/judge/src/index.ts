@@ -1,4 +1,7 @@
 import type { CandidatePost } from '@bsky-ai-feed/core';
+import { create_openai_judge } from './openai.js';
+export { create_openai_judge } from './openai.js';
+export type { OpenAiJudgeOptions } from './openai.js';
 
 export type JudgeDecision = {
 	uri: string;
@@ -22,6 +25,13 @@ export const ai_technology_prompt = [
 	'Reject metaphorical uses, first aid, anti-AI posts without technical substance, and name collisions.',
 	'Return only decisions keyed by URI.',
 ].join('\n');
+
+export function create_configured_judge(): Judge {
+	if (process.env.AI_JUDGE_PROVIDER === 'openai') {
+		return create_openai_judge();
+	}
+	return create_noop_judge();
+}
 
 export function create_noop_judge(): Judge {
 	return {

@@ -1,4 +1,8 @@
 import {
+	ai_technology_prompt,
+	type Judge,
+} from '@bsky-ai-feed/judge';
+import {
 	filter_candidate_post,
 	type CandidatePost,
 	type FeedPost,
@@ -11,9 +15,14 @@ export type JetstreamRunOptions = {
 	mode: JetstreamRunMode;
 	host?: string;
 	store?: FeedStore;
+	judge?: Judge;
+	confidence_threshold?: number;
 	max_events?: number;
 	seen_text?: Set<string>;
 	log?: (message: string) => void;
+	on_open?: () => void;
+	on_result?: (result: JetstreamMessageResult) => void;
+	on_close?: () => void;
 };
 
 type JetstreamCommitEvent = {
@@ -95,7 +104,10 @@ export function candidate_post_from_jetstream_event(
 
 export async function process_jetstream_message(
 	message: string,
-	options: Pick<JetstreamRunOptions, 'mode' | 'store' | 'seen_text'>,
+	options: Pick<
+		JetstreamRunOptions,
+		'mode' | 'store' | 'seen_text' | 'judge' | 'confidence_threshold'
+	>,
 ): Promise<JetstreamMessageResult> {
 	const event = JSON.parse(message) as unknown;
 	const post = candidate_post_from_jetstream_event(event);
@@ -109,6 +121,23 @@ export async function process_jetstream_message(
 			post,
 			reason: filter_result.reason,
 		};
+	}
+
+	if (options.judge) {
+		const [decision] = await options.judge.judge_batch({
+			posts: [post],
+			prompt: ai_technology_prompt,
+		});
+		if (
+			!decision?.is_ai_technology ||
+			decision.confidence < (options.confidence_threshold ?? 0.7)
+		) {
+			return {
+				kind: 'rejected',
+				post,
+				reason: decision?.reason ?? 'ai-judge-rejected',
+			};
+		}
 	}
 
 	const accepted_post = {
@@ -133,6 +162,7 @@ export async function run_jetstream(
 	await new Promise<void>((resolve, reject) => {
 		socket.addEventListener('open', () => {
 			log(`connected ${url}`);
+			options.on_open?.();
 		});
 
 		socket.addEventListener('message', (event) => {
@@ -141,6 +171,7 @@ export async function run_jetstream(
 					await message_data_to_string(event.data),
 					{ ...options, seen_text },
 				);
+				options.on_result?.(result);
 				if (result.kind === 'ignored') return;
 
 				processed_events += 1;
@@ -163,6 +194,7 @@ export async function run_jetstream(
 		});
 
 		socket.addEventListener('close', () => {
+			options.on_close?.();
 			resolve();
 		});
 	});

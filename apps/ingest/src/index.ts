@@ -6,6 +6,7 @@ import {
 } from '@bsky-ai-feed/core';
 import {
 	ai_technology_prompt,
+	create_configured_judge,
 	create_noop_judge,
 	type Judge,
 } from '@bsky-ai-feed/judge';
@@ -14,7 +15,9 @@ import {
 	type FeedStore,
 } from '@bsky-ai-feed/store';
 import { fileURLToPath } from 'node:url';
+import { load_dotenv } from './env.js';
 import { create_jetstream_url, run_jetstream } from './jetstream.js';
+import { create_ingest_status_writer } from './status.js';
 
 export {
 	candidate_post_from_jetstream_event,
@@ -110,6 +113,7 @@ function parse_max_events(args: string[]): number | undefined {
 }
 
 async function run_cli(args: string[]): Promise<void> {
+	load_dotenv();
 	if (args.includes('--help')) {
 		console.log(
 			[
@@ -118,6 +122,7 @@ async function run_cli(args: string[]): Promise<void> {
 				'Environment:',
 				'  JETSTREAM_HOST defaults to jetstream2.us-east.bsky.network',
 				'  BSKY_AI_FEED_DB_PATH overrides .data/feed.sqlite',
+				'  BSKY_AI_FEED_STATUS_PATH overrides .data/ingest-status.json',
 				'',
 				`Jetstream URL: ${create_jetstream_url(process.env.JETSTREAM_HOST)}`,
 			].join('\n'),
@@ -125,11 +130,20 @@ async function run_cli(args: string[]): Promise<void> {
 		return;
 	}
 
+	const status = create_ingest_status_writer();
+	const judge =
+		process.env.AI_JUDGE_PROVIDER === 'openai'
+			? create_configured_judge()
+			: undefined;
 	await run_jetstream({
 		mode: 'ingest',
 		host: process.env.JETSTREAM_HOST,
 		max_events: parse_max_events(args),
 		store: create_default_store(),
+		judge,
+		on_open: () => status.connected(),
+		on_result: (result) => status.record(result),
+		on_close: () => status.closed(),
 	});
 }
 

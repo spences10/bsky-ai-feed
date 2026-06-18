@@ -51,13 +51,18 @@ pnpm run test
 pnpm run build
 ```
 
-Run the feed server and live ingest worker against the shared SQLite
-database:
+Run the local product loop against the shared SQLite database:
 
 ```sh
-pnpm run dev:feed
-pnpm run dev:ingest -- --max=10
-curl http://localhost:3000/
+pnpm run dev
+```
+
+Then open <http://localhost:3000/>. It returns JSON with ingest
+status, the feed DID/endpoints, and the exact feed skeleton rows that
+will be served to Bluesky. The raw feed skeleton is still available
+at:
+
+```sh
 curl 'http://localhost:3000/xrpc/app.bsky.feed.getFeedSkeleton?feed=test'
 ```
 
