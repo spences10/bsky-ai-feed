@@ -4,12 +4,11 @@ aptPkgs = ["curl", "wget"]
 
 [phases.install]
 cmds = [
-	"npm install -g pnpm@11.6.0",
-	"pnpm i --frozen-lockfile --config.engine-strict=false",
+	"npm exec --yes pnpm@11.6.0 -- pnpm i --frozen-lockfile --config.engine-strict=false",
 ]
 
 [phases.build]
-cmds = ["pnpm run build"]
+cmds = ["npm exec --yes pnpm@11.6.0 -- pnpm run build"]
 
 [start]
-cmd = "pnpm run start"
+cmd = "npm exec --yes pnpm@11.6.0 -- pnpm run start"
