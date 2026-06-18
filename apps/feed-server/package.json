@@ -1,0 +1,36 @@
+{
+	"name": "@bsky-ai-feed/feed-server",
+	"version": "0.0.0",
+	"private": true,
+	"description": "HTTP feed generator server for the Bluesky AI feed",
+	"license": "MIT",
+	"bin": {
+		"bsky-ai-feed-server": "./dist/index.js"
+	},
+	"type": "module",
+	"scripts": {
+		"build": "pnpm --filter \"$npm_package_name^...\" run build:self && pnpm run build:self",
+		"build:self": "vp pack",
+		"check": "pnpm --filter \"$npm_package_name^...\" run build:self && pnpm run check:self",
+		"check:self": "vp check",
+		"dev": "tsx src/index.ts",
+		"start": "node ./dist/index.js",
+		"test": "pnpm --filter \"$npm_package_name^...\" run build:self && pnpm run test:self",
+		"test:self": "vp test",
+		"test:watch": "vp test watch"
+	},
+	"dependencies": {
+		"@bsky-ai-feed/core": "workspace:*",
+		"@bsky-ai-feed/store": "workspace:*"
+	},
+	"devDependencies": {
+		"@types/node": "catalog:",
+		"tsx": "^4.21.0",
+		"typescript": "catalog:",
+		"vite-plus": "catalog:",
+		"vitest": "catalog:"
+	},
+	"engines": {
+		"node": ">=24.15.0"
+	}
+}

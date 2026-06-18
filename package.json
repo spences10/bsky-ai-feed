@@ -1,0 +1,28 @@
+{
+	"name": "bsky-ai-feed",
+	"version": "0.0.0",
+	"private": true,
+	"description": "Self-hosted Bluesky custom feed curated for posts genuinely about AI",
+	"license": "MIT",
+	"type": "module",
+	"scripts": {
+		"build": "pnpm --filter \"./packages/*\" --filter \"./apps/*\" run build",
+		"check": "pnpm --filter \"./packages/*\" run build:self && vp check && pnpm --filter \"./packages/*\" --filter \"./apps/*\" run check",
+		"check:fix": "vp check --fix",
+		"format": "vp check --fix",
+		"test": "pnpm --filter \"./packages/*\" --filter \"./apps/*\" run test",
+		"test:watch": "pnpm --parallel --filter \"./packages/*\" --filter \"./apps/*\" run test:watch",
+		"dev:ingest": "pnpm --filter @bsky-ai-feed/ingest dev",
+		"dev:feed": "pnpm --filter @bsky-ai-feed/feed-server dev"
+	},
+	"devDependencies": {
+		"@types/node": "catalog:",
+		"typescript": "catalog:",
+		"vite-plus": "catalog:",
+		"vitest": "catalog:"
+	},
+	"engines": {
+		"node": ">=24.15.0"
+	},
+	"packageManager": "pnpm@11.6.0"
+}

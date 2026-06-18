@@ -1,0 +1,33 @@
+{
+	"format_on_save": "on",
+	"languages": {
+		"JavaScript": {
+			"formatter": {
+				"external": {
+					"command": "pnpm",
+					"arguments": [
+						"exec",
+						"vp",
+						"fmt",
+						"--stdin-filepath",
+						"{buffer_path}"
+					]
+				}
+			}
+		},
+		"TypeScript": {
+			"formatter": {
+				"external": {
+					"command": "pnpm",
+					"arguments": [
+						"exec",
+						"vp",
+						"fmt",
+						"--stdin-filepath",
+						"{buffer_path}"
+					]
+				}
+			}
+		}
+	}
+}
