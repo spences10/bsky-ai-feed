@@ -38,14 +38,6 @@ export type ServiceStatusResponse = {
 	service: string;
 	status: 'ok';
 	did: string;
-	endpoints: {
-		health: string;
-		status_api: string;
-		did: string;
-		describe_feed_generator: string;
-		feed_skeleton: string;
-		ingest_api: string;
-	};
 };
 
 export type HealthResponse = {
@@ -57,6 +49,15 @@ export type LocalStatusResponse = ServiceStatusResponse & {
 	ingest: unknown;
 	feed: FeedSkeletonResponse;
 };
+
+type RateLimitBucket = {
+	count: number;
+	reset_at: number;
+};
+
+const ingest_rate_limit_window_ms = 60_000;
+const ingest_rate_limit_max = 20;
+const ingest_rate_limits = new Map<string, RateLimitBucket>();
 
 export async function create_feed_skeleton_body(
 	store: FeedStore,
@@ -87,15 +88,6 @@ export function create_service_status_body(
 		service: 'bsky-ai-feed',
 		status: 'ok',
 		did,
-		endpoints: {
-			health: '/health',
-			status_api: '/api/status',
-			did: '/.well-known/did.json',
-			describe_feed_generator:
-				'/xrpc/app.bsky.feed.describeFeedGenerator',
-			feed_skeleton: '/xrpc/app.bsky.feed.getFeedSkeleton?feed=test',
-			ingest_api: '/api/ingest',
-		},
 	};
 }
 
@@ -155,6 +147,12 @@ export function create_request_handler(
 			request.url ?? '/',
 			'http://localhost',
 		);
+		const is_ingest_path = request_url.pathname === '/api/ingest';
+
+		if (!is_ingest_path && !is_read_method(request)) {
+			write_json(response, { error: 'method_not_allowed' }, 405);
+			return;
+		}
 
 		if (request_url.pathname === '/') {
 			write_html(
@@ -165,10 +163,7 @@ export function create_request_handler(
 		}
 
 		if (request_url.pathname === '/api/status') {
-			write_json(
-				response,
-				await create_local_status_body(store, did),
-			);
+			write_json(response, create_service_status_body(did));
 			return;
 		}
 
@@ -182,7 +177,7 @@ export function create_request_handler(
 			return;
 		}
 
-		if (request_url.pathname === '/api/ingest') {
+		if (is_ingest_path) {
 			await handle_ingest_api(request, response, store);
 			return;
 		}
@@ -219,6 +214,16 @@ export function create_request_handler(
 			request_url.pathname !== '/xrpc/app.bsky.feed.getFeedSkeleton'
 		) {
 			write_json(response, { error: 'not_found' }, 404);
+			return;
+		}
+
+		if (
+			!is_valid_feed_request(
+				request_url.searchParams.get('feed'),
+				feed_uri,
+			)
+		) {
+			write_json(response, { error: 'unknown_feed' }, 400);
 			return;
 		}
 
@@ -293,6 +298,12 @@ async function handle_ingest_api(
 ): Promise<void> {
 	if (request.method !== 'POST') {
 		write_json(response, { error: 'method_not_allowed' }, 405);
+		return;
+	}
+	if (is_ingest_rate_limited(request)) {
+		write_json(response, { error: 'rate_limited' }, 429, {
+			'retry-after': '60',
+		});
 		return;
 	}
 	if (!is_authorized(request)) {
@@ -454,6 +465,42 @@ function is_authorized(request: IncomingMessage): boolean {
 	return left.length === right.length && timingSafeEqual(left, right);
 }
 
+function is_ingest_rate_limited(request: IncomingMessage): boolean {
+	const key = client_ip(request);
+	const now = Date.now();
+	const bucket = ingest_rate_limits.get(key);
+	if (!bucket || bucket.reset_at <= now) {
+		ingest_rate_limits.set(key, {
+			count: 1,
+			reset_at: now + ingest_rate_limit_window_ms,
+		});
+		return false;
+	}
+	bucket.count += 1;
+	return bucket.count > ingest_rate_limit_max;
+}
+
+function client_ip(request: IncomingMessage): string {
+	const cf_ip = request.headers['cf-connecting-ip'];
+	if (typeof cf_ip === 'string' && cf_ip) return cf_ip;
+	const forwarded_for = request.headers['x-forwarded-for'];
+	if (typeof forwarded_for === 'string' && forwarded_for) {
+		return forwarded_for.split(',')[0]?.trim() || 'unknown';
+	}
+	return request.socket.remoteAddress ?? 'unknown';
+}
+
+function is_read_method(request: IncomingMessage): boolean {
+	return request.method === 'GET' || request.method === 'HEAD';
+}
+
+function is_valid_feed_request(
+	feed_param: string | null,
+	feed_uri: string,
+): boolean {
+	return feed_param === feed_uri;
+}
+
 function read_request_body(
 	request: IncomingMessage,
 ): Promise<string> {
@@ -549,7 +596,7 @@ function render_landing_page(view: LandingPageView): string {
 <div class="eyebrow"><span class="dot"></span> ${view.connected ? 'Ingest online' : 'Ingest reconnecting'}</div>
 <h1>AI signal, minus the sludge.</h1>
 <p class="lede">A Bluesky custom feed that watches Jetstream, filters locally, asks an AI judge for a second opinion, and serves the sharpest AI technology posts.</p>
-<div class="actions"><a class="button primary" href="${escape_html(view.feed_url)}">Open on Bluesky</a><a class="button" href="/xrpc/app.bsky.feed.getFeedSkeleton?feed=test&limit=10">View skeleton JSON</a><a class="button" href="/api/status">API status</a></div>
+<div class="actions"><a class="button primary" href="${escape_html(view.feed_url)}">Open on Bluesky</a><a class="button" href="/xrpc/app.bsky.feed.getFeedSkeleton?feed=${escape_html(encodeURIComponent(view.feed_uri))}&limit=10">View skeleton JSON</a><a class="button" href="/api/status">API status</a></div>
 </div>
 <div class="orb"><img alt="AI Tech Feed icon" src="/icon.svg" /></div>
 </section>
@@ -656,12 +703,27 @@ function escape_html(value: string): string {
 		.replaceAll("'", '&#39;');
 }
 
+const security_headers = {
+	'strict-transport-security': 'max-age=31536000; includeSubDomains',
+	'x-content-type-options': 'nosniff',
+	'referrer-policy': 'no-referrer',
+	'permissions-policy': 'camera=(), microphone=(), geolocation=()',
+	'x-frame-options': 'DENY',
+};
+
+const html_security_headers = {
+	'content-security-policy':
+		"default-src 'self'; img-src 'self'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'",
+};
+
 function write_html(
 	response: ServerResponse,
 	body: string,
 	status_code = 200,
 ) {
 	response.writeHead(status_code, {
+		...security_headers,
+		...html_security_headers,
 		'content-type': 'text/html; charset=utf-8',
 	});
 	response.end(body);
@@ -673,6 +735,7 @@ function write_svg(
 	status_code = 200,
 ) {
 	response.writeHead(status_code, {
+		...security_headers,
 		'cache-control': 'public, max-age=86400',
 		'content-type': 'image/svg+xml; charset=utf-8',
 	});
@@ -683,8 +746,11 @@ function write_json(
 	response: ServerResponse,
 	body: unknown,
 	status_code = 200,
+	extra_headers: Record<string, string> = {},
 ) {
 	response.writeHead(status_code, {
+		...security_headers,
+		...extra_headers,
 		'content-type': 'application/json; charset=utf-8',
 	});
 	response.end(JSON.stringify(body));
