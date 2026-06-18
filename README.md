@@ -1,7 +1,11 @@
-# bsky-ai-feed
+# AI Tech Feed for Bluesky
 
-Self-hosted Bluesky custom feed for high-signal posts about AI as a
-technology.
+A self-hosted Bluesky custom feed that surfaces high-signal posts about
+AI as a technology. It listens to Jetstream, applies cheap local filters,
+asks an AI judge to review likely matches, stores accepted posts, and
+serves Bluesky feed skeletons from SQLite.
+
+![AI Tech Feed icon](./assets/feed-icon.png)
 
 ## Product shape
 

@@ -1,0 +1,51 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="bg" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(178 128) rotate(53) scale(520)">
+      <stop stop-color="#1fd7ff"/>
+      <stop offset="0.32" stop-color="#1746ff"/>
+      <stop offset="0.68" stop-color="#101827"/>
+      <stop offset="1" stop-color="#060812"/>
+    </radialGradient>
+    <linearGradient id="ring" x1="118" y1="126" x2="398" y2="386" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#A8F7FF"/>
+      <stop offset="0.52" stop-color="#55A7FF"/>
+      <stop offset="1" stop-color="#8B5CF6"/>
+    </linearGradient>
+    <linearGradient id="spark" x1="174" y1="176" x2="338" y2="336" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="0.48" stop-color="#9FF6FF"/>
+      <stop offset="1" stop-color="#7C3AED"/>
+    </linearGradient>
+    <filter id="glow" x="34" y="34" width="444" height="444" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="12" result="blur"/>
+      <feColorMatrix in="blur" type="matrix" values="0 0 0 0 0.12 0 0 0 0 0.78 0 0 0 0 1 0 0 0 0.8 0"/>
+      <feBlend in="SourceGraphic"/>
+    </filter>
+  </defs>
+
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <path d="M76 366C128 444 254 465 352 413C450 361 485 255 430 156C375 57 246 35 148 88C50 141 24 288 76 366Z" fill="#07111F" fill-opacity="0.42"/>
+
+  <g filter="url(#glow)">
+    <path d="M126 256C126 184.203 184.203 126 256 126C327.797 126 386 184.203 386 256C386 327.797 327.797 386 256 386" stroke="url(#ring)" stroke-width="22" stroke-linecap="round"/>
+    <path d="M169 175C209 139 273 131 326 159" stroke="#DFFBFF" stroke-width="11" stroke-linecap="round" stroke-opacity="0.78"/>
+    <path d="M112 286C151 329 211 350 270 338" stroke="#57D7FF" stroke-width="12" stroke-linecap="round" stroke-opacity="0.82"/>
+  </g>
+
+  <g stroke="url(#spark)" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M256 156V356" stroke-width="24"/>
+    <path d="M169 306L256 156L343 306" stroke-width="24"/>
+    <path d="M207 257H305" stroke-width="20"/>
+  </g>
+
+  <g fill="#F8FEFF">
+    <circle cx="256" cy="156" r="18"/>
+    <circle cx="169" cy="306" r="18"/>
+    <circle cx="343" cy="306" r="18"/>
+    <circle cx="207" cy="257" r="12"/>
+    <circle cx="305" cy="257" r="12"/>
+  </g>
+
+  <path d="M392 112L404 142L434 154L404 166L392 196L380 166L350 154L380 142L392 112Z" fill="#BFF7FF"/>
+  <path d="M116 110L123 128L141 135L123 142L116 160L109 142L91 135L109 128L116 110Z" fill="#7DD3FC"/>
+</svg>

@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import { readFileSync } from 'node:fs';
+import { extname } from 'node:path';
 import { load_dotenv } from './env.js';
 
 function required_env(name: string): string {
@@ -13,6 +15,7 @@ export type PublishFeedConfig = {
 	rkey: string;
 	display_name: string;
 	description?: string;
+	avatar_path?: string;
 	pds_url: string;
 	handle: string;
 	password: string;
@@ -23,14 +26,27 @@ type SessionResponse = {
 	did: string;
 };
 
+type FeedAvatarBlob = {
+	$type?: 'blob';
+	ref: { $link: string };
+	mimeType: string;
+	size: number;
+};
+
+type UploadBlobResponse = {
+	blob: FeedAvatarBlob;
+};
+
 export function create_feed_generator_record(
 	config: PublishFeedConfig,
+	avatar?: FeedAvatarBlob,
 ) {
 	return {
 		$type: 'app.bsky.feed.generator',
 		did: config.service_did,
 		displayName: config.display_name,
 		description: config.description,
+		avatar,
 		createdAt: new Date().toISOString(),
 	};
 }
@@ -60,6 +76,9 @@ export async function publish_feed_generator(
 		);
 	}
 	const session = (await session_response.json()) as SessionResponse;
+	const avatar = config.avatar_path
+		? await upload_feed_avatar(config, session.accessJwt, fetch_impl)
+		: undefined;
 
 	const put_response = await fetch_impl(
 		`${config.pds_url}/xrpc/com.atproto.repo.putRecord`,
@@ -73,10 +92,13 @@ export async function publish_feed_generator(
 				repo: session.did,
 				collection: 'app.bsky.feed.generator',
 				rkey: config.rkey,
-				record: create_feed_generator_record({
-					...config,
-					publisher_did: session.did,
-				}),
+				record: create_feed_generator_record(
+					{
+						...config,
+						publisher_did: session.did,
+					},
+					avatar,
+				),
 			}),
 		},
 	);
@@ -84,6 +106,38 @@ export async function publish_feed_generator(
 		throw new Error(`putRecord failed: ${put_response.status}`);
 	}
 	return (await put_response.json()) as { uri: string; cid: string };
+}
+
+async function upload_feed_avatar(
+	config: PublishFeedConfig,
+	access_jwt: string,
+	fetch_impl: typeof fetch,
+): Promise<FeedAvatarBlob> {
+	if (!config.avatar_path) throw new Error('avatar_path is required');
+	const mime_type = avatar_mime_type(config.avatar_path);
+	const response = await fetch_impl(
+		`${config.pds_url}/xrpc/com.atproto.repo.uploadBlob`,
+		{
+			method: 'POST',
+			headers: {
+				authorization: `Bearer ${access_jwt}`,
+				'content-type': mime_type,
+			},
+			body: readFileSync(config.avatar_path),
+		},
+	);
+	if (!response.ok) {
+		throw new Error(`uploadBlob failed: ${response.status}`);
+	}
+	return ((await response.json()) as UploadBlobResponse).blob;
+}
+
+function avatar_mime_type(path: string): 'image/png' | 'image/jpeg' {
+	const extension = extname(path).toLowerCase();
+	if (extension === '.png') return 'image/png';
+	if (extension === '.jpg' || extension === '.jpeg')
+		return 'image/jpeg';
+	throw new Error('BSKY_FEED_AVATAR_PATH must be a PNG or JPEG');
 }
 
 function read_config_from_env(): PublishFeedConfig {
@@ -96,6 +150,7 @@ function read_config_from_env(): PublishFeedConfig {
 		description:
 			process.env.BSKY_FEED_DESCRIPTION ??
 			'High-signal posts about AI as a technology.',
+		avatar_path: process.env.BSKY_FEED_AVATAR_PATH,
 		pds_url: process.env.BSKY_PDS_URL ?? 'https://bsky.social',
 		handle: required_env('BSKY_HANDLE'),
 		password: required_env('BSKY_APP_PASSWORD'),

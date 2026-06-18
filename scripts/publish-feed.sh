@@ -8,6 +8,7 @@ export BSKY_HANDLE="${BSKY_HANDLE:-scottspence.dev}"
 export BSKY_FEED_RKEY="${BSKY_FEED_RKEY:-ai-feed}"
 export BSKY_FEED_DISPLAY_NAME="${BSKY_FEED_DISPLAY_NAME:-AI Tech Feed}"
 export BSKY_FEED_DESCRIPTION="${BSKY_FEED_DESCRIPTION:-High-signal posts about AI as a technology.}"
+export BSKY_FEED_AVATAR_PATH="${BSKY_FEED_AVATAR_PATH:-assets/feed-icon.png}"
 export BSKY_PDS_URL="${BSKY_PDS_URL:-https://eurosky.social}"
 
 if [[ "${1:-}" != "--use-env" ]]; then
@@ -26,5 +27,6 @@ printf '  handle: %s\n' "$BSKY_HANDLE" >&2
 printf '  service DID: %s\n' "$FEEDGEN_DID" >&2
 printf '  rkey: %s\n' "$BSKY_FEED_RKEY" >&2
 printf '  display name: %s\n' "$BSKY_FEED_DISPLAY_NAME" >&2
+printf '  avatar: %s\n' "$BSKY_FEED_AVATAR_PATH" >&2
 
 pnpm run publish:plan
