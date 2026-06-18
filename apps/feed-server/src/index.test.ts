@@ -60,6 +60,31 @@ describe('create_feed_skeleton_body', () => {
 			cursor: '2026-01-01T00:00:00.000Z::bafy1',
 		});
 	});
+
+	it('prepends a pinned post only on the first page', async () => {
+		const store = create_memory_feed_store([
+			{
+				uri: 'at://did:example/app.bsky.feed.post/1',
+				cid: 'bafy1',
+				accepted_at: '2026-01-01T00:00:00.000Z',
+			},
+		]);
+		const pinned = 'at://did:example/app.bsky.feed.post/pinned';
+
+		await expect(
+			create_feed_skeleton_body(store, undefined, 2, pinned),
+		).resolves.toMatchObject({
+			feed: [
+				{ post: pinned },
+				{ post: 'at://did:example/app.bsky.feed.post/1' },
+			],
+		});
+		await expect(
+			create_feed_skeleton_body(store, 'cursor', 2, pinned),
+		).resolves.toMatchObject({
+			feed: [{ post: 'at://did:example/app.bsky.feed.post/1' }],
+		});
+	});
 });
 
 describe('create_request_handler', () => {

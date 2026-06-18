@@ -63,13 +63,29 @@ export async function create_feed_skeleton_body(
 	store: FeedStore,
 	cursor: string | undefined,
 	limit = 50,
+	pinned_post_uri = process.env.BSKY_PINNED_POST_URI,
 ): Promise<FeedSkeletonResponse> {
+	const clamped_limit = clamp_feed_limit(limit);
+	const pinned_post = normalize_pinned_post_uri(pinned_post_uri);
+	const include_pinned = !cursor && Boolean(pinned_post);
 	const page = await store.get_feed_page({
 		before: cursor,
-		limit: clamp_feed_limit(limit),
+		limit: include_pinned
+			? Math.max(clamped_limit - 1, 0)
+			: clamped_limit,
 	});
+	const feed = page.posts.map((post) => ({ post: post.uri }));
+	if (include_pinned && pinned_post) {
+		return {
+			feed: [
+				{ post: pinned_post },
+				...feed.filter((item) => item.post !== pinned_post),
+			],
+			cursor: page.cursor,
+		};
+	}
 	return {
-		feed: page.posts.map((post) => ({ post: post.uri })),
+		feed,
 		cursor: page.cursor,
 	};
 }
@@ -499,6 +515,16 @@ function is_valid_feed_request(
 	feed_uri: string,
 ): boolean {
 	return feed_param === feed_uri;
+}
+
+function normalize_pinned_post_uri(
+	uri: string | undefined,
+): string | undefined {
+	if (!uri) return undefined;
+	const trimmed = uri.trim();
+	return /^at:\/\/[^/]+\/app\.bsky\.feed\.post\/[^/]+$/u.test(trimmed)
+		? trimmed
+		: undefined;
 }
 
 function read_request_body(
