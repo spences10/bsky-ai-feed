@@ -66,6 +66,38 @@ describe('create_feed_skeleton_body', () => {
 		});
 	});
 
+	it('limits repeated authors in a feed page', async () => {
+		const store = create_memory_feed_store([
+			{
+				uri: 'at://did:example:one/app.bsky.feed.post/1',
+				cid: 'bafy1',
+				accepted_at: '2026-01-03T00:00:00.000Z',
+				score: 1,
+			},
+			{
+				uri: 'at://did:example:one/app.bsky.feed.post/2',
+				cid: 'bafy2',
+				accepted_at: '2026-01-02T00:00:00.000Z',
+				score: 0.9,
+			},
+			{
+				uri: 'at://did:example:two/app.bsky.feed.post/1',
+				cid: 'bafy3',
+				accepted_at: '2026-01-01T00:00:00.000Z',
+				score: 0.8,
+			},
+		]);
+
+		await expect(
+			create_feed_skeleton_body(store, undefined, 3, undefined, 1),
+		).resolves.toMatchObject({
+			feed: [
+				{ post: 'at://did:example:one/app.bsky.feed.post/1' },
+				{ post: 'at://did:example:two/app.bsky.feed.post/1' },
+			],
+		});
+	});
+
 	it('prepends a pinned post only on the first page', async () => {
 		const store = create_memory_feed_store([
 			{

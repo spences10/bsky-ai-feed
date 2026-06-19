@@ -146,6 +146,7 @@ describe('create_sqlite_feed_store', () => {
 			{ id: '0004_exclude_euvd_bot' },
 			{ id: '0005_exclude_arxiv_bots' },
 			{ id: '0006_excluded_handle_patterns' },
+			{ id: '0007_exclude_firehose_news_sources' },
 		]);
 		database.close();
 	});
@@ -166,6 +167,7 @@ describe('create_sqlite_feed_store', () => {
 				'did:plc:gg2zgjclkvcuj5hkhdnd4lnf',
 				'did:plc:df4dbsajjtvbbjn5poliesvs',
 				'did:plc:joj2wp43ajdu7st22gmpglyl',
+				'did:plc:nrfqk6t446qme4kb7aiemqig',
 			]),
 			excluded_handle_patterns: expect.arrayContaining([
 				'bot\\.bsky\\.social$',

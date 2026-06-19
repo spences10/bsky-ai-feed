@@ -65,17 +65,29 @@ export async function create_feed_skeleton_body(
 	cursor: string | undefined,
 	limit = 50,
 	pinned_post_uri = process.env.BSKY_PINNED_POST_URI,
+	max_posts_per_author = parse_optional_positive_integer(
+		process.env.BSKY_FEED_MAX_POSTS_PER_AUTHOR,
+	) ?? 2,
 ): Promise<FeedSkeletonResponse> {
 	const clamped_limit = clamp_feed_limit(limit);
 	const pinned_post = normalize_pinned_post_uri(pinned_post_uri);
 	const include_pinned = !cursor && Boolean(pinned_post);
+	const target_limit = include_pinned
+		? Math.max(clamped_limit - 1, 0)
+		: clamped_limit;
 	const page = await store.get_feed_page({
 		before: cursor,
-		limit: include_pinned
-			? Math.max(clamped_limit - 1, 0)
-			: clamped_limit,
+		limit:
+			max_posts_per_author > 0
+				? clamp_feed_limit(target_limit * 5)
+				: target_limit,
 	});
-	const feed = page.posts.map((post) => ({ post: post.uri }));
+	const selected_posts = select_diverse_posts(
+		page.posts,
+		target_limit,
+		max_posts_per_author,
+	);
+	const feed = selected_posts.map((post) => ({ post: post.uri }));
 	if (include_pinned && pinned_post) {
 		return {
 			feed: [
@@ -614,6 +626,39 @@ function is_record(value: unknown): value is Record<string, unknown> {
 function clamp_feed_limit(limit: number): number {
 	if (!Number.isFinite(limit)) return 50;
 	return Math.min(Math.max(Math.trunc(limit), 1), 100);
+}
+
+function parse_optional_positive_integer(
+	value: string | undefined,
+): number | undefined {
+	const parsed = Number(value);
+	if (!Number.isFinite(parsed)) return undefined;
+	const integer = Math.trunc(parsed);
+	return integer > 0 ? integer : undefined;
+}
+
+function select_diverse_posts(
+	posts: FeedPost[],
+	limit: number,
+	max_posts_per_author: number,
+): FeedPost[] {
+	if (max_posts_per_author <= 0) return posts.slice(0, limit);
+	const counts_by_author = new Map<string, number>();
+	const selected: FeedPost[] = [];
+	for (const post of posts) {
+		const author = did_from_at_uri(post.uri) ?? post.uri;
+		const count = counts_by_author.get(author) ?? 0;
+		if (count >= max_posts_per_author) continue;
+		counts_by_author.set(author, count + 1);
+		selected.push(post);
+		if (selected.length >= limit) break;
+	}
+	return selected;
+}
+
+function did_from_at_uri(uri: string): string | undefined {
+	const match = /^at:\/\/(did:[^/]+)\//u.exec(uri);
+	return match?.[1];
 }
 
 type LandingPageView = {
