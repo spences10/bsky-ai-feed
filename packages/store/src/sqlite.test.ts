@@ -143,6 +143,7 @@ describe('create_sqlite_feed_store', () => {
 			{ id: '0001_initial' },
 			{ id: '0002_filter_policy' },
 			{ id: '0003_excluded_accounts' },
+			{ id: '0004_exclude_euvd_bot' },
 		]);
 		database.close();
 	});
@@ -160,6 +161,7 @@ describe('create_sqlite_feed_store', () => {
 			]),
 			excluded_dids: expect.arrayContaining([
 				'did:plc:3mbqqo3dxddhl7nwqmghsn6a',
+				'did:plc:gg2zgjclkvcuj5hkhdnd4lnf',
 			]),
 		});
 
