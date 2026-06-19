@@ -12,6 +12,8 @@ import type {
 	FeedStore,
 } from '@bsky-ai-feed/store';
 import {
+	hydrate_author_handles,
+	is_excluded_author,
 	load_runtime_filter_policy,
 	type RuntimeFilterPolicy,
 } from './filter-policy.js';
@@ -164,9 +166,27 @@ export async function process_prefiltered_candidates(
 ): Promise<JetstreamMessageResult[]> {
 	if (candidates.length === 0) return [];
 	const judged_at = new Date().toISOString();
+	if (options.filter_policy) {
+		await hydrate_author_handles(
+			candidates.map(({ post }) => post),
+			options.filter_policy,
+		);
+	}
+	const excluded_author_uris = new Set(
+		options.filter_policy
+			? candidates
+					.filter(({ post }) =>
+						is_excluded_author(post, options.filter_policy ?? {}),
+					)
+					.map(({ post }) => post.uri)
+			: [],
+	);
+	const candidates_to_judge = candidates.filter(
+		({ post }) => !excluded_author_uris.has(post.uri),
+	);
 	const decisions = options.judge
 		? await options.judge.judge_batch({
-				posts: candidates.map(({ post }) => post),
+				posts: candidates_to_judge.map(({ post }) => post),
 				prompt: create_ai_technology_prompt({
 					filter_keywords: options.filter_policy?.keywords,
 				}),
@@ -178,6 +198,13 @@ export async function process_prefiltered_candidates(
 	const candidate_decisions: CandidateDecision[] = [];
 	const accepted_posts: FeedPost[] = [];
 	const results = candidates.map(({ post, matched_keywords }) => {
+		if (excluded_author_uris.has(post.uri)) {
+			return {
+				kind: 'rejected',
+				post,
+				reason: 'excluded-account',
+			} satisfies JetstreamMessageResult;
+		}
 		const decision = decisions_by_uri.get(post.uri);
 		const accepted = options.judge
 			? decision_is_accepted(decision, options)

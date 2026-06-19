@@ -17,7 +17,10 @@ import {
 } from '@bsky-ai-feed/store';
 import { fileURLToPath } from 'node:url';
 import { load_dotenv } from './env.js';
-import { load_runtime_filter_policy } from './filter-policy.js';
+import {
+	hydrate_author_handles,
+	load_runtime_filter_policy,
+} from './filter-policy.js';
 import { create_jetstream_url, run_jetstream } from './jetstream.js';
 import { create_ingest_status_writer } from './status.js';
 
@@ -65,6 +68,7 @@ export function create_ingest_pipeline(
 	return {
 		async process_posts(posts) {
 			const filter_policy = await load_runtime_filter_policy(store);
+			await hydrate_author_handles(posts, filter_policy);
 			const filtered_candidates = posts.flatMap((post) => {
 				const result = filter_candidate_post(post, {
 					...filter_policy,

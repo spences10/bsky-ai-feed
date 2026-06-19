@@ -4,6 +4,7 @@ import type { CandidatePost, FilterResult } from './types.js';
 export type FilterOptions = {
 	keywords?: readonly string[];
 	excluded_dids?: ReadonlySet<string>;
+	excluded_handle_patterns?: readonly RegExp[];
 	suppression_patterns?: readonly RegExp[];
 	seen_text?: Set<string>;
 	min_text_length?: number;
@@ -59,6 +60,14 @@ export function filter_candidate_post(
 		return { accepted: false, reason: 'reply' };
 	const author_did = did_from_at_uri(post.uri);
 	if (author_did && options.excluded_dids?.has(author_did)) {
+		return { accepted: false, reason: 'excluded-account' };
+	}
+	if (
+		post.author_handle &&
+		options.excluded_handle_patterns?.some((pattern) =>
+			pattern.test(post.author_handle ?? ''),
+		)
+	) {
 		return { accepted: false, reason: 'excluded-account' };
 	}
 	if (!is_likely_english(post)) {

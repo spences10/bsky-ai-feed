@@ -53,6 +53,10 @@ type ExcludedAccountRow = {
 	did: string;
 };
 
+type ExcludedHandlePatternRow = {
+	pattern: string;
+};
+
 const default_database_path = '.data/feed.sqlite';
 
 export function create_sqlite_feed_store(
@@ -185,6 +189,12 @@ export function create_sqlite_feed_store(
 		WHERE enabled = 1
 		ORDER BY did ASC
 	`);
+	const excluded_handle_patterns_statement = database.prepare(`
+		SELECT pattern
+		FROM excluded_handle_patterns
+		WHERE enabled = 1
+		ORDER BY pattern ASC
+	`);
 
 	return {
 		async put_posts(posts) {
@@ -268,12 +278,17 @@ export function create_sqlite_feed_store(
 				suppression_patterns_statement.all() as SuppressionPatternRow[];
 			const excluded_rows =
 				excluded_accounts_statement.all() as ExcludedAccountRow[];
+			const excluded_handle_pattern_rows =
+				excluded_handle_patterns_statement.all() as ExcludedHandlePatternRow[];
 			return {
 				keyword_sets,
 				suppression_patterns: suppression_rows.map(
 					(row) => row.pattern,
 				),
 				excluded_dids: excluded_rows.map((row) => row.did),
+				excluded_handle_patterns: excluded_handle_pattern_rows.map(
+					(row) => row.pattern,
+				),
 			};
 		},
 		async get_feed_page({ before, limit }) {

@@ -5,6 +5,7 @@ export type PostRef = {
 
 export type CandidatePost = PostRef & {
 	text: string;
+	author_handle?: string;
 	lang?: string;
 	reply_root_uri?: string;
 	indexed_at?: string;

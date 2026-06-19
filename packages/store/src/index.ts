@@ -63,6 +63,7 @@ export type FilterPolicy = {
 	keyword_sets: Record<string, string[]>;
 	suppression_patterns: string[];
 	excluded_dids: string[];
+	excluded_handle_patterns: string[];
 };
 
 export type FeedStore = {

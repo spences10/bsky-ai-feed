@@ -52,6 +52,15 @@ describe('filter_candidate_post', () => {
 		).toEqual({ accepted: false, reason: 'excluded-account' });
 	});
 
+	it('rejects excluded account handle patterns before paid judging', () => {
+		expect(
+			filter_candidate_post(
+				{ ...base_post, author_handle: 'statml-bot.bsky.social' },
+				{ excluded_handle_patterns: [/bot\.bsky\.social$/iu] },
+			),
+		).toEqual({ accepted: false, reason: 'excluded-account' });
+	});
+
 	it('rejects duplicate normalized text', () => {
 		const seen_text = new Set<string>([
 			text_signature(base_post.text),

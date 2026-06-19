@@ -145,6 +145,7 @@ describe('create_sqlite_feed_store', () => {
 			{ id: '0003_excluded_accounts' },
 			{ id: '0004_exclude_euvd_bot' },
 			{ id: '0005_exclude_arxiv_bots' },
+			{ id: '0006_excluded_handle_patterns' },
 		]);
 		database.close();
 	});
@@ -165,6 +166,10 @@ describe('create_sqlite_feed_store', () => {
 				'did:plc:gg2zgjclkvcuj5hkhdnd4lnf',
 				'did:plc:df4dbsajjtvbbjn5poliesvs',
 				'did:plc:joj2wp43ajdu7st22gmpglyl',
+			]),
+			excluded_handle_patterns: expect.arrayContaining([
+				'bot\\.bsky\\.social$',
+				'^arxiv-',
 			]),
 		});
 
