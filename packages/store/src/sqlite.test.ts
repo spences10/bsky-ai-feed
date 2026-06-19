@@ -139,7 +139,11 @@ describe('create_sqlite_feed_store', () => {
 			database
 				.prepare('SELECT id FROM schema_migrations ORDER BY id')
 				.all(),
-		).toEqual([{ id: '0001_initial' }, { id: '0002_filter_policy' }]);
+		).toEqual([
+			{ id: '0001_initial' },
+			{ id: '0002_filter_policy' },
+			{ id: '0003_excluded_accounts' },
+		]);
 		database.close();
 	});
 
@@ -153,6 +157,9 @@ describe('create_sqlite_feed_store', () => {
 			},
 			suppression_patterns: expect.arrayContaining([
 				'\\bAI\\s+slop\\b',
+			]),
+			excluded_dids: expect.arrayContaining([
+				'did:plc:3mbqqo3dxddhl7nwqmghsn6a',
 			]),
 		});
 

@@ -51,6 +51,7 @@ describe('create_ingest_pipeline', () => {
 		store.get_filter_policy = async () => ({
 			keyword_sets: { default: ['agent framework'] },
 			suppression_patterns: ['\\bwebinar\\b'],
+			excluded_dids: [],
 		});
 		const pipeline = create_ingest_pipeline({
 			judge: accepting_judge,
@@ -75,6 +76,30 @@ describe('create_ingest_pipeline', () => {
 		expect(accepted_posts.map((post) => post.uri)).toEqual([
 			'at://did:example/app.bsky.feed.post/3',
 		]);
+	});
+
+	it('excludes DIDs from store-backed filter policy', async () => {
+		const store = create_memory_feed_store();
+		store.get_filter_policy = async () => ({
+			keyword_sets: { default: ['OpenAI'] },
+			suppression_patterns: [],
+			excluded_dids: ['did:plc:blocked'],
+		});
+		const pipeline = create_ingest_pipeline({
+			judge: accepting_judge,
+			store,
+		});
+
+		const accepted_posts = await pipeline.process_posts([
+			{
+				uri: 'at://did:plc:blocked/app.bsky.feed.post/1',
+				cid: 'bafyblocked',
+				text: 'OpenAI released a new language model today',
+				lang: 'en',
+			},
+		]);
+
+		expect(accepted_posts).toEqual([]);
 	});
 });
 

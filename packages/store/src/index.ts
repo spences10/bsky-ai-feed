@@ -62,6 +62,7 @@ export type QueryResult =
 export type FilterPolicy = {
 	keyword_sets: Record<string, string[]>;
 	suppression_patterns: string[];
+	excluded_dids: string[];
 };
 
 export type FeedStore = {

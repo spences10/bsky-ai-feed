@@ -3,7 +3,7 @@ import type { FeedStore, FilterPolicy } from '@bsky-ai-feed/store';
 
 export type RuntimeFilterPolicy = Pick<
 	FilterOptions,
-	'keywords' | 'suppression_patterns'
+	'keywords' | 'excluded_dids' | 'suppression_patterns'
 >;
 
 export async function load_runtime_filter_policy(
@@ -17,6 +17,9 @@ export function runtime_filter_policy(
 ): RuntimeFilterPolicy {
 	return strip_undefined({
 		keywords: non_empty(policy?.keyword_sets.default),
+		excluded_dids: non_empty(policy?.excluded_dids)
+			? new Set(policy?.excluded_dids)
+			: undefined,
 		suppression_patterns: non_empty(
 			(policy?.suppression_patterns ?? []).flatMap(compile_pattern),
 		),

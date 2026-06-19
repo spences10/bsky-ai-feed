@@ -3,6 +3,7 @@ import type { CandidatePost, FilterResult } from './types.js';
 
 export type FilterOptions = {
 	keywords?: readonly string[];
+	excluded_dids?: ReadonlySet<string>;
 	suppression_patterns?: readonly RegExp[];
 	seen_text?: Set<string>;
 	min_text_length?: number;
@@ -56,6 +57,10 @@ export function filter_candidate_post(
 ): FilterResult {
 	if (post.reply_root_uri)
 		return { accepted: false, reason: 'reply' };
+	const author_did = did_from_at_uri(post.uri);
+	if (author_did && options.excluded_dids?.has(author_did)) {
+		return { accepted: false, reason: 'excluded-account' };
+	}
 	if (!is_likely_english(post)) {
 		return { accepted: false, reason: 'non-english' };
 	}
@@ -109,6 +114,11 @@ const low_signal_patterns = [
 	/\bAI\s+slop\b/iu,
 	/\b(?:nazi|nazis|hitler|fascist|fascism)\b/iu,
 ] as const;
+
+function did_from_at_uri(uri: string): string | undefined {
+	const match = /^at:\/\/(did:[^/]+)\//u.exec(uri);
+	return match?.[1];
+}
 
 function escape_regex(value: string): string {
 	return value.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');

@@ -23,6 +23,7 @@ export type FeedPost = PostRef & {
 
 export type RejectionReason =
 	| 'reply'
+	| 'excluded-account'
 	| 'non-english'
 	| 'duplicate'
 	| 'keyword-miss'
