@@ -5,7 +5,7 @@ import {
 	type FeedPost,
 } from '@bsky-ai-feed/core';
 import {
-	ai_technology_prompt,
+	create_ai_technology_prompt,
 	create_configured_judge,
 	create_noop_judge,
 	type Judge,
@@ -17,6 +17,7 @@ import {
 } from '@bsky-ai-feed/store';
 import { fileURLToPath } from 'node:url';
 import { load_dotenv } from './env.js';
+import { load_runtime_filter_policy } from './filter-policy.js';
 import { create_jetstream_url, run_jetstream } from './jetstream.js';
 import { create_ingest_status_writer } from './status.js';
 
@@ -63,8 +64,12 @@ export function create_ingest_pipeline(
 
 	return {
 		async process_posts(posts) {
+			const filter_policy = await load_runtime_filter_policy(store);
 			const filtered_candidates = posts.flatMap((post) => {
-				const result = filter_candidate_post(post, { seen_text });
+				const result = filter_candidate_post(post, {
+					...filter_policy,
+					seen_text,
+				});
 				return result.accepted
 					? [{ post, matched_keywords: result.matched_keywords }]
 					: [];
@@ -74,7 +79,9 @@ export function create_ingest_pipeline(
 			const candidates = filtered_candidates.map(({ post }) => post);
 			const decisions = await judge.judge_batch({
 				posts: candidates,
-				prompt: ai_technology_prompt,
+				prompt: create_ai_technology_prompt({
+					filter_keywords: filter_policy.keywords,
+				}),
 			});
 			const decisions_by_uri = new Map(
 				decisions.map((decision) => [decision.uri, decision]),

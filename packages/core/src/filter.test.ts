@@ -64,6 +64,18 @@ describe('filter_candidate_post', () => {
 		).toEqual({ accepted: false, reason: 'suppressed' });
 	});
 
+	it('can use supplied suppression patterns', () => {
+		expect(
+			filter_candidate_post(
+				{
+					...base_post,
+					text: 'OpenAI released a new language model today',
+				},
+				{ suppression_patterns: [/language model/iu] },
+			),
+		).toEqual({ accepted: false, reason: 'suppressed' });
+	});
+
 	it('rejects AI art and politics bait before paid judging', () => {
 		expect(
 			filter_candidate_post({

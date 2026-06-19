@@ -129,6 +129,36 @@ describe('create_sqlite_feed_store', () => {
 		database.close();
 	});
 
+	it('records applied schema migrations', async () => {
+		const { database_path } = create_temp_database_path();
+		const store = create_sqlite_feed_store({ path: database_path });
+		store.close?.();
+
+		const database = new DatabaseSync(database_path);
+		expect(
+			database
+				.prepare('SELECT id FROM schema_migrations ORDER BY id')
+				.all(),
+		).toEqual([{ id: '0001_initial' }, { id: '0002_filter_policy' }]);
+		database.close();
+	});
+
+	it('loads seeded filter policy data', async () => {
+		const { database_path } = create_temp_database_path();
+		const store = create_sqlite_feed_store({ path: database_path });
+
+		await expect(store.get_filter_policy?.()).resolves.toMatchObject({
+			keyword_sets: {
+				default: expect.arrayContaining(['AI', 'OpenAI']),
+			},
+			suppression_patterns: expect.arrayContaining([
+				'\\bAI\\s+slop\\b',
+			]),
+		});
+
+		store.close?.();
+	});
+
 	it('deletes posts older than a cutoff', async () => {
 		const { database_path } = create_temp_database_path();
 		const store = create_sqlite_feed_store({ path: database_path });

@@ -1,9 +1,13 @@
 import type { FeedPost } from '@bsky-ai-feed/core';
-import { mkdirSync, readFileSync } from 'node:fs';
+import { mkdirSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
 import { decode_feed_cursor, encode_feed_cursor } from './cursor.js';
-import type { CandidateDecision, FeedStore } from './index.js';
+import type {
+	CandidateDecision,
+	FeedStore,
+	FilterPolicy,
+} from './index.js';
 
 export type SqliteFeedStoreOptions = {
 	path?: string;
@@ -34,6 +38,15 @@ type CandidateDecisionRow = {
 	category: string | null;
 	reason: string | null;
 	matched_keywords_json: string | null;
+};
+
+type FilterKeywordRow = {
+	keyword_set: string;
+	phrase: string;
+};
+
+type SuppressionPatternRow = {
+	pattern: string;
 };
 
 const default_database_path = '.data/feed.sqlite';
@@ -149,6 +162,19 @@ export function create_sqlite_feed_store(
 		DELETE FROM feed_posts
 		WHERE accepted_at < ?
 	`);
+	const filter_keywords_statement = database.prepare(`
+		SELECT keyword_set, phrase
+		FROM filter_keywords
+		JOIN filter_keyword_sets ON filter_keyword_sets.name = filter_keywords.keyword_set
+		WHERE filter_keywords.enabled = 1 AND filter_keyword_sets.enabled = 1
+		ORDER BY keyword_set ASC, phrase ASC
+	`);
+	const suppression_patterns_statement = database.prepare(`
+		SELECT pattern
+		FROM filter_suppression_patterns
+		WHERE enabled = 1
+		ORDER BY pattern ASC
+	`);
 
 	return {
 		async put_posts(posts) {
@@ -220,6 +246,23 @@ export function create_sqlite_feed_store(
 				last_insert_rowid: Number(result.lastInsertRowid),
 			};
 		},
+		async get_filter_policy() {
+			const keyword_sets: FilterPolicy['keyword_sets'] = {};
+			const keyword_rows =
+				filter_keywords_statement.all() as FilterKeywordRow[];
+			for (const row of keyword_rows) {
+				keyword_sets[row.keyword_set] ??= [];
+				keyword_sets[row.keyword_set]?.push(row.phrase);
+			}
+			const suppression_rows =
+				suppression_patterns_statement.all() as SuppressionPatternRow[];
+			return {
+				keyword_sets,
+				suppression_patterns: suppression_rows.map(
+					(row) => row.pattern,
+				),
+			};
+		},
 		async get_feed_page({ before, limit }) {
 			const decoded_cursor = decode_feed_cursor(before);
 			const cursor_score = decoded_cursor
@@ -265,7 +308,45 @@ export function create_sqlite_feed_store(
 }
 
 function migrate_database(database: DatabaseSync): void {
-	database.exec(read_schema_sql());
+	database.exec(
+		[
+			'PRAGMA journal_mode = WAL',
+			'PRAGMA busy_timeout = 5000',
+			'PRAGMA foreign_keys = ON',
+			`CREATE TABLE IF NOT EXISTS schema_migrations (
+			id TEXT PRIMARY KEY,
+			applied_at TEXT NOT NULL
+		) STRICT`,
+		].join(';'),
+	);
+
+	const migration_applied_statement = database.prepare(
+		'SELECT 1 FROM schema_migrations WHERE id = ?',
+	);
+	const record_migration_statement = database.prepare(
+		'INSERT INTO schema_migrations (id, applied_at) VALUES (?, ?)',
+	);
+
+	for (const migration of read_migrations()) {
+		database.exec('BEGIN IMMEDIATE');
+		try {
+			const already_applied = migration_applied_statement.get(
+				migration.id,
+			);
+			if (!already_applied) {
+				database.exec(migration.sql);
+				record_migration_statement.run(
+					migration.id,
+					new Date().toISOString(),
+				);
+			}
+			database.exec('COMMIT');
+		} catch (error) {
+			database.exec('ROLLBACK');
+			throw error;
+		}
+	}
+
 	for (const column of [
 		'text TEXT',
 		'matched_keywords_json TEXT',
@@ -277,11 +358,20 @@ function migrate_database(database: DatabaseSync): void {
 	}
 }
 
-function read_schema_sql(): string {
-	return readFileSync(
-		new URL('../schema.sql', import.meta.url),
-		'utf8',
-	);
+type Migration = {
+	id: string;
+	sql: string;
+};
+
+function read_migrations(): Migration[] {
+	const migrations_url = new URL('../migrations/', import.meta.url);
+	return readdirSync(migrations_url)
+		.filter((file_name) => /^\d{4}_[a-z0-9_]+\.sql$/u.test(file_name))
+		.sort()
+		.map((file_name) => ({
+			id: file_name.replace(/\.sql$/u, ''),
+			sql: readFileSync(new URL(file_name, migrations_url), 'utf8'),
+		}));
 }
 
 function add_column_if_missing(

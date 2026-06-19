@@ -4,13 +4,17 @@ import {
 	type FeedPost,
 } from '@bsky-ai-feed/core';
 import {
-	ai_technology_prompt,
+	create_ai_technology_prompt,
 	type Judge,
 } from '@bsky-ai-feed/judge';
 import type {
 	CandidateDecision,
 	FeedStore,
 } from '@bsky-ai-feed/store';
+import {
+	load_runtime_filter_policy,
+	type RuntimeFilterPolicy,
+} from './filter-policy.js';
 
 export type JetstreamRunMode = 'ingest';
 
@@ -136,11 +140,17 @@ export async function process_jetstream_message(
 		| 'quality_threshold'
 	>,
 ): Promise<JetstreamMessageResult> {
-	const prefiltered = prefilter_jetstream_message(message, options);
+	const filter_policy = await load_runtime_filter_policy(
+		options.store,
+	);
+	const prefiltered = prefilter_jetstream_message(message, {
+		...options,
+		filter_policy,
+	});
 	if (prefiltered.kind !== 'candidate') return prefiltered;
 	const [result] = await process_prefiltered_candidates(
 		[prefiltered],
-		options,
+		{ ...options, filter_policy },
 	);
 	return result ?? { kind: 'ignored' };
 }
@@ -150,14 +160,16 @@ export async function process_prefiltered_candidates(
 	options: Pick<
 		JetstreamRunOptions,
 		'store' | 'judge' | 'confidence_threshold' | 'quality_threshold'
-	>,
+	> & { filter_policy?: RuntimeFilterPolicy },
 ): Promise<JetstreamMessageResult[]> {
 	if (candidates.length === 0) return [];
 	const judged_at = new Date().toISOString();
 	const decisions = options.judge
 		? await options.judge.judge_batch({
 				posts: candidates.map(({ post }) => post),
-				prompt: ai_technology_prompt,
+				prompt: create_ai_technology_prompt({
+					filter_keywords: options.filter_policy?.keywords,
+				}),
 			})
 		: [];
 	const decisions_by_uri = new Map(
@@ -220,6 +232,9 @@ export async function run_jetstream(
 ): Promise<void> {
 	const log = options.log ?? console.log;
 	const seen_text = options.seen_text ?? new Set<string>();
+	const filter_policy = await load_runtime_filter_policy(
+		options.store,
+	);
 	const url = create_jetstream_url(options.host);
 	const socket = new WebSocket(url);
 	const candidate_buffer: PrefilteredCandidate[] = [];
@@ -273,6 +288,7 @@ export async function run_jetstream(
 			flush_chain = flush_chain.then(async () => {
 				const results = await process_prefiltered_candidates(batch, {
 					...options,
+					filter_policy,
 				});
 				for (const result of results) emit(result);
 			});
@@ -288,7 +304,7 @@ export async function run_jetstream(
 			void (async () => {
 				const result = prefilter_jetstream_message(
 					await message_data_to_string(event.data),
-					{ ...options, seen_text },
+					{ ...options, seen_text, filter_policy },
 				);
 				if (result.kind !== 'candidate') {
 					emit(result);
@@ -319,12 +335,15 @@ export async function run_jetstream(
 
 function prefilter_jetstream_message(
 	message: string,
-	options: Pick<JetstreamRunOptions, 'seen_text'>,
+	options: Pick<JetstreamRunOptions, 'seen_text'> & {
+		filter_policy?: RuntimeFilterPolicy;
+	},
 ): PrefilterResult {
 	const event = JSON.parse(message) as unknown;
 	const post = candidate_post_from_jetstream_event(event);
 	if (!post) return { kind: 'ignored' };
 	const filter_result = filter_candidate_post(post, {
+		...options.filter_policy,
 		seen_text: options.seen_text,
 	});
 	if (!filter_result.accepted) {

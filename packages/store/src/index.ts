@@ -59,6 +59,11 @@ export type QueryResult =
 			last_insert_rowid: number;
 	  };
 
+export type FilterPolicy = {
+	keyword_sets: Record<string, string[]>;
+	suppression_patterns: string[];
+};
+
 export type FeedStore = {
 	put_posts(posts: FeedPost[]): Promise<void>;
 	put_decisions?(decisions: CandidateDecision[]): Promise<void>;
@@ -66,6 +71,7 @@ export type FeedStore = {
 		query: string,
 		params?: QueryParam[],
 	): Promise<QueryResult>;
+	get_filter_policy?(): Promise<FilterPolicy>;
 	get_feed_page(cursor: FeedCursor): Promise<FeedPage>;
 	get_recent_decisions?(
 		cursor: ReviewCursor,

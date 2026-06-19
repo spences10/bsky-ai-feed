@@ -45,6 +45,37 @@ describe('create_ingest_pipeline', () => {
 			'at://did:example/app.bsky.feed.post/1',
 		]);
 	});
+
+	it('uses store-backed filter policy when available', async () => {
+		const store = create_memory_feed_store();
+		store.get_filter_policy = async () => ({
+			keyword_sets: { default: ['agent framework'] },
+			suppression_patterns: ['\\bwebinar\\b'],
+		});
+		const pipeline = create_ingest_pipeline({
+			judge: accepting_judge,
+			store,
+		});
+
+		const accepted_posts = await pipeline.process_posts([
+			{
+				uri: 'at://did:example/app.bsky.feed.post/3',
+				cid: 'bafyexample3',
+				text: 'This agent framework has useful AI workflow ideas',
+				lang: 'en',
+			},
+			{
+				uri: 'at://did:example/app.bsky.feed.post/4',
+				cid: 'bafyexample4',
+				text: 'OpenAI webinar about enterprise transformation',
+				lang: 'en',
+			},
+		]);
+
+		expect(accepted_posts.map((post) => post.uri)).toEqual([
+			'at://did:example/app.bsky.feed.post/3',
+		]);
+	});
 });
 
 describe('create_jetstream_url', () => {

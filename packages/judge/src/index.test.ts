@@ -1,9 +1,20 @@
 import { describe, expect, it } from 'vitest';
 import {
 	ai_technology_prompt,
+	create_ai_technology_prompt,
 	create_noop_judge,
 	create_openai_judge,
 } from './index.js';
+
+describe('create_ai_technology_prompt', () => {
+	it('can include runtime filter keywords', () => {
+		expect(
+			create_ai_technology_prompt({
+				filter_keywords: ['AI', 'agent framework'],
+			}),
+		).toContain('AI, agent framework');
+	});
+});
 
 describe('create_noop_judge', () => {
 	it('returns rejecting decisions for every candidate', async () => {

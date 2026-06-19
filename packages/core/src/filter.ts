@@ -3,6 +3,7 @@ import type { CandidatePost, FilterResult } from './types.js';
 
 export type FilterOptions = {
 	keywords?: readonly string[];
+	suppression_patterns?: readonly RegExp[];
 	seen_text?: Set<string>;
 	min_text_length?: number;
 };
@@ -42,8 +43,11 @@ export function is_likely_english(post: CandidatePost): boolean {
 	return letters === 0 || ascii_letters / letters >= 0.8;
 }
 
-export function is_suppressed_low_signal(text: string): boolean {
-	return low_signal_patterns.some((pattern) => pattern.test(text));
+export function is_suppressed_low_signal(
+	text: string,
+	patterns: readonly RegExp[] = low_signal_patterns,
+): boolean {
+	return patterns.some((pattern) => pattern.test(text));
 }
 
 export function filter_candidate_post(
@@ -66,7 +70,9 @@ export function filter_candidate_post(
 		return { accepted: false, reason: 'duplicate' };
 	}
 
-	if (is_suppressed_low_signal(post.text)) {
+	if (
+		is_suppressed_low_signal(post.text, options.suppression_patterns)
+	) {
 		return { accepted: false, reason: 'suppressed' };
 	}
 

@@ -31,7 +31,27 @@ export type Judge = {
 	judge_batch(batch: JudgeBatch): Promise<JudgeDecision[]>;
 };
 
-export const ai_technology_prompt = [
+export type AiTechnologyPromptOptions = {
+	filter_keywords?: readonly string[];
+};
+
+export function create_ai_technology_prompt(
+	options: AiTechnologyPromptOptions = {},
+): string {
+	const filter_keywords = options.filter_keywords?.length
+		? [
+				'',
+				'Current keyword prefilter terms:',
+				options.filter_keywords.join(', '),
+			]
+		: [];
+
+	return [...ai_technology_prompt_lines, ...filter_keywords].join(
+		'\n',
+	);
+}
+
+const ai_technology_prompt_lines = [
 	'You curate a Bluesky feed for high-signal AI technology posts.',
 	'',
 	'Accept only posts that would be useful to someone following AI/ML/LLM technology deliberately.',
@@ -51,7 +71,9 @@ export const ai_technology_prompt = [
 	'Prefer false negatives over false positives. A feed item should be specific, timely, and worth clicking or discussing.',
 	'Use score for feed value from 0 to 1, not just topicality. Accept only when score is at least 0.65.',
 	'Return only decisions keyed by URI.',
-].join('\n');
+];
+
+export const ai_technology_prompt = create_ai_technology_prompt();
 
 export function create_configured_judge(): Judge {
 	if (process.env.AI_JUDGE_PROVIDER === 'openai') {
