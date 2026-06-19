@@ -52,6 +52,7 @@ describe('create_ingest_pipeline', () => {
 			keyword_sets: { default: ['agent framework'] },
 			suppression_patterns: ['\\bwebinar\\b'],
 			excluded_dids: [],
+			excluded_handle_patterns: [],
 		});
 		const pipeline = create_ingest_pipeline({
 			judge: accepting_judge,
@@ -84,6 +85,7 @@ describe('create_ingest_pipeline', () => {
 			keyword_sets: { default: ['OpenAI'] },
 			suppression_patterns: [],
 			excluded_dids: ['did:plc:blocked'],
+			excluded_handle_patterns: [],
 		});
 		const pipeline = create_ingest_pipeline({
 			judge: accepting_judge,

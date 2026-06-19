@@ -20,6 +20,9 @@ import {
 
 export type JetstreamRunMode = 'ingest';
 
+const default_judge_batch_size = 25;
+const default_judge_batch_delay_ms = 30_000;
+
 export type JetstreamRunOptions = {
 	mode: JetstreamRunMode;
 	host?: string;
@@ -265,8 +268,10 @@ export async function run_jetstream(
 	const url = create_jetstream_url(options.host);
 	const socket = new WebSocket(url);
 	const candidate_buffer: PrefilteredCandidate[] = [];
-	const judge_batch_size = options.judge_batch_size ?? 10;
-	const judge_batch_delay_ms = options.judge_batch_delay_ms ?? 1000;
+	const judge_batch_size =
+		options.judge_batch_size ?? default_judge_batch_size;
+	const judge_batch_delay_ms =
+		options.judge_batch_delay_ms ?? default_judge_batch_delay_ms;
 	let flush_timer: NodeJS.Timeout | undefined;
 	let processed_events = 0;
 	let closed_for_limit = false;

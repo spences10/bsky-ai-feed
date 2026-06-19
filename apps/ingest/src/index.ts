@@ -184,6 +184,8 @@ async function run_cli(args: string[]): Promise<void> {
 				'  JETSTREAM_HOST defaults to jetstream2.us-east.bsky.network',
 				'  BSKY_AI_FEED_DB_PATH overrides .data/feed.sqlite',
 				'  BSKY_AI_FEED_STATUS_PATH overrides .data/ingest-status.json',
+				'  AI_JUDGE_BATCH_SIZE batches paid judge calls (default 25)',
+				'  AI_JUDGE_BATCH_DELAY_MS flushes partial judge batches (default 30000)',
 				'',
 				`Jetstream URL: ${create_jetstream_url(process.env.JETSTREAM_HOST)}`,
 			].join('\n'),
