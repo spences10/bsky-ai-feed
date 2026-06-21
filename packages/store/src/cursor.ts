@@ -41,29 +41,28 @@ export function is_before_cursor(
 	cursor: DecodedCursor | undefined,
 ): boolean {
 	if (!cursor) return true;
+	if (post.accepted_at < cursor.accepted_at) return true;
+	if (post.accepted_at > cursor.accepted_at) return false;
 	if (cursor.score !== undefined) {
 		const post_score = normalize_score(post.score) ?? 0;
 		if (post_score < cursor.score) return true;
 		if (post_score > cursor.score) return false;
 	}
-	if (post.accepted_at < cursor.accepted_at) return true;
-	return (
-		post.accepted_at === cursor.accepted_at && post.cid < cursor.cid
-	);
+	return post.cid < cursor.cid;
 }
 
 export function compare_feed_posts(
 	left: FeedPost,
 	right: FeedPost,
 ): number {
-	const score_compare =
-		(normalize_score(right.score) ?? 0) -
-		(normalize_score(left.score) ?? 0);
-	if (score_compare !== 0) return score_compare;
 	const time_compare = right.accepted_at.localeCompare(
 		left.accepted_at,
 	);
 	if (time_compare !== 0) return time_compare;
+	const score_compare =
+		(normalize_score(right.score) ?? 0) -
+		(normalize_score(left.score) ?? 0);
+	if (score_compare !== 0) return score_compare;
 	return right.cid.localeCompare(left.cid);
 }
 

@@ -26,6 +26,7 @@ describe('create_sqlite_feed_store', () => {
 				uri: 'at://did:example/app.bsky.feed.post/old',
 				cid: 'bafyold',
 				accepted_at: '2026-01-01T00:00:00.000Z',
+				score: 1,
 			},
 			{
 				uri: 'at://did:example/app.bsky.feed.post/new',
@@ -147,6 +148,7 @@ describe('create_sqlite_feed_store', () => {
 			{ id: '0005_exclude_arxiv_bots' },
 			{ id: '0006_excluded_handle_patterns' },
 			{ id: '0007_exclude_firehose_news_sources' },
+			{ id: '0008_exclude_current_news_sources' },
 		]);
 		database.close();
 	});
@@ -168,6 +170,7 @@ describe('create_sqlite_feed_store', () => {
 				'did:plc:df4dbsajjtvbbjn5poliesvs',
 				'did:plc:joj2wp43ajdu7st22gmpglyl',
 				'did:plc:nrfqk6t446qme4kb7aiemqig',
+				'did:plc:vmkx7lvcmmcoiycsz4wqwioq',
 			]),
 			excluded_handle_patterns: expect.arrayContaining([
 				'bot\\.bsky\\.social$',

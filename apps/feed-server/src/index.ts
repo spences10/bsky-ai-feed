@@ -7,13 +7,13 @@ import {
 	type FeedStore,
 	type QueryParam,
 } from '@bsky-ai-feed/store';
+import { timingSafeEqual } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import {
 	createServer,
 	type IncomingMessage,
 	type ServerResponse,
 } from 'node:http';
-import { timingSafeEqual } from 'node:crypto';
-import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { load_dotenv } from './env.js';
 
@@ -64,7 +64,7 @@ export async function create_feed_skeleton_body(
 	store: FeedStore,
 	cursor: string | undefined,
 	limit = 50,
-	pinned_post_uri = process.env.BSKY_PINNED_POST_URI,
+	pinned_post_uri = default_pinned_post_uri(),
 	max_posts_per_author = parse_optional_positive_integer(
 		process.env.BSKY_FEED_MAX_POSTS_PER_AUTHOR,
 	) ?? 2,
@@ -296,6 +296,12 @@ function default_database_path(): string {
 	return fileURLToPath(
 		new URL('../../../.data/feed.sqlite', import.meta.url),
 	);
+}
+
+function default_pinned_post_uri(): string | undefined {
+	return process.env.BSKY_PINNED_POST_ENABLED === 'true'
+		? process.env.BSKY_PINNED_POST_URI
+		: undefined;
 }
 
 function default_status_path(): string {

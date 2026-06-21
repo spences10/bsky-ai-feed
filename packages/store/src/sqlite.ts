@@ -137,15 +137,15 @@ export function create_sqlite_feed_store(
 		FROM feed_posts
 		WHERE
 			? IS NULL
-			OR COALESCE(score, 0) < ?
+			OR accepted_at < ?
 			OR (
-				COALESCE(score, 0) = ?
+				accepted_at = ?
 				AND (
-					accepted_at < ?
-					OR (accepted_at = ? AND cid < ?)
+					COALESCE(score, 0) < ?
+					OR (COALESCE(score, 0) = ? AND cid < ?)
 				)
 			)
-		ORDER BY COALESCE(score, 0) DESC, accepted_at DESC, cid DESC
+		ORDER BY accepted_at DESC, COALESCE(score, 0) DESC, cid DESC
 		LIMIT ?
 	`);
 	const recent_decisions_statement = database.prepare(`
@@ -293,17 +293,17 @@ export function create_sqlite_feed_store(
 		},
 		async get_feed_page({ before, limit }) {
 			const decoded_cursor = decode_feed_cursor(before);
+			const cursor_accepted_at = decoded_cursor?.accepted_at ?? null;
 			const cursor_score = decoded_cursor
 				? (decoded_cursor.score ?? 0)
 				: null;
-			const cursor_accepted_at = decoded_cursor?.accepted_at ?? null;
 			const cursor_cid = decoded_cursor?.cid ?? null;
 			const rows = page_statement.all(
-				cursor_score,
-				cursor_score,
-				cursor_score,
 				cursor_accepted_at,
 				cursor_accepted_at,
+				cursor_accepted_at,
+				cursor_score,
+				cursor_score,
 				cursor_cid,
 				limit,
 			) as FeedPostRow[];
