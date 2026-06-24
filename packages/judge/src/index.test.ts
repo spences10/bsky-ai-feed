@@ -117,3 +117,89 @@ describe('create_openai_judge', () => {
 		]);
 	});
 });
+
+describe('create_openai_judge resilience', () => {
+	it('retries transient fetch failures and keeps the ingest loop alive', async () => {
+		let calls = 0;
+		const judge = create_openai_judge({
+			api_key: 'test-key',
+			model: 'test-model',
+			max_retries: 1,
+			retry_delay_ms: 0,
+			fetch: async () => {
+				calls += 1;
+				if (calls === 1) throw new TypeError('fetch failed');
+				return new Response(
+					JSON.stringify({
+						output_text: JSON.stringify({
+							decisions: [
+								{
+									uri: 'at://did:example/app.bsky.feed.post/1',
+									accept: true,
+									confidence: 0.9,
+									score: 0.8,
+									category: 'developer-tooling',
+									reason: 'specific tool release',
+								},
+							],
+						}),
+					}),
+					{ status: 200 },
+				);
+			},
+		});
+
+		await expect(
+			judge.judge_batch({
+				prompt: ai_technology_prompt,
+				posts: [
+					{
+						uri: 'at://did:example/app.bsky.feed.post/1',
+						cid: 'bafyexample',
+						text: 'A new coding agent was released',
+					},
+				],
+			}),
+		).resolves.toMatchObject([
+			{
+				is_ai_technology: true,
+				category: 'developer-tooling',
+			},
+		]);
+		expect(calls).toBe(2);
+	});
+
+	it('returns rejecting decisions instead of throwing after retries are exhausted', async () => {
+		const judge = create_openai_judge({
+			api_key: 'test-key',
+			model: 'test-model',
+			max_retries: 0,
+			retry_delay_ms: 0,
+			fetch: async () => {
+				throw new TypeError('fetch failed');
+			},
+		});
+
+		await expect(
+			judge.judge_batch({
+				prompt: ai_technology_prompt,
+				posts: [
+					{
+						uri: 'at://did:example/app.bsky.feed.post/2',
+						cid: 'bafyexample2',
+						text: 'A new model was released',
+					},
+				],
+			}),
+		).resolves.toEqual([
+			{
+				uri: 'at://did:example/app.bsky.feed.post/2',
+				is_ai_technology: false,
+				confidence: 0,
+				score: 0,
+				category: 'off-topic',
+				reason: 'judge unavailable: fetch failed',
+			},
+		]);
+	});
+});
