@@ -81,6 +81,19 @@ describe('filter_candidate_post', () => {
 		).toEqual({ accepted: false, reason: 'suppressed' });
 	});
 
+	it('rejects generic AI mentions without technical feed signal', () => {
+		expect(
+			filter_candidate_post({
+				...base_post,
+				text: 'You know what does not have any bullshit AI integration is a CRT tv',
+			}),
+		).toEqual({
+			accepted: false,
+			reason: 'weak-signal',
+			matched_keywords: ['AI'],
+		});
+	});
+
 	it('can use supplied suppression patterns', () => {
 		expect(
 			filter_candidate_post(

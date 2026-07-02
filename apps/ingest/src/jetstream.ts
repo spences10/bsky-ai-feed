@@ -208,25 +208,28 @@ export async function process_prefiltered_candidates(
 				reason: 'excluded-account',
 			} satisfies JetstreamMessageResult;
 		}
-		const decision = decisions_by_uri.get(post.uri);
-		const accepted = options.judge
-			? decision_is_accepted(decision, options)
-			: true;
-		if (options.judge) {
-			candidate_decisions.push({
-				uri: post.uri,
-				cid: post.cid,
-				text: post.text,
-				indexed_at: post.indexed_at,
-				judged_at,
-				accepted,
-				confidence: decision?.confidence ?? 0,
-				score: decision?.score ?? 0,
-				category: decision?.category,
-				reason: decision?.reason,
-				matched_keywords,
-			});
+		if (!options.judge) {
+			return {
+				kind: 'rejected',
+				post,
+				reason: 'judge-not-configured',
+			} satisfies JetstreamMessageResult;
 		}
+		const decision = decisions_by_uri.get(post.uri);
+		const accepted = decision_is_accepted(decision, options);
+		candidate_decisions.push({
+			uri: post.uri,
+			cid: post.cid,
+			text: post.text,
+			indexed_at: post.indexed_at,
+			judged_at,
+			accepted,
+			confidence: decision?.confidence ?? 0,
+			score: decision?.score ?? 0,
+			category: decision?.category,
+			reason: decision?.reason,
+			matched_keywords,
+		});
 		if (!accepted) {
 			return {
 				kind: 'rejected',

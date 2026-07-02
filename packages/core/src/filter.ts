@@ -102,14 +102,24 @@ export function filter_candidate_post(
 		};
 	}
 
+	if (!has_prefilter_feed_signal(post.text, matched_keywords)) {
+		return {
+			accepted: false,
+			reason: 'weak-signal',
+			matched_keywords,
+		};
+	}
+
 	options.seen_text?.add(signature);
 	return { accepted: true, post, matched_keywords };
 }
 
 const low_signal_patterns = [
-	/#[A-Z0-9]*(?:Crypto|DePIN|AIJobs|Hiring)[A-Z0-9]*/iu,
+	/#[A-Z0-9]*(?:Crypto|DePIN|AIJobs|Hiring|Finance)[A-Z0-9]*/iu,
 	/\bsmart money\s+(?:accumulated|dumped)\b/iu,
 	/\b(?:price|trend):\s*[$+\-0-9.]/iu,
+	/\b(?:stock|stocks|shares?)\s+(?:to buy|rally|surge|falls?|jumps?)\b/iu,
+	/\b(?:black market|sovereign wealth fund)\b/iu,
 	/\btopgenaijobs\.com\b/iu,
 	/\b(?:AI|ML|GenAI)\s+(?:job|jobs|hiring)\b/iu,
 	/\brank in AI search results\b/iu,
@@ -120,9 +130,25 @@ const low_signal_patterns = [
 	/\bAI[- ]generated\)?\s*$/iu,
 	/\b(?:AI|generated)\s+(?:art|artist|artists|image|images|video|videos)\b/iu,
 	/\b(?:art|image|video)s?\s+(?:made|created|generated)\s+(?:with|by)\s+AI\b/iu,
+	/\b(?:not|isn'?t)\s+AI\b/iu,
 	/\bAI\s+slop\b/iu,
 	/\b(?:nazi|nazis|hitler|fascist|fascism)\b/iu,
 ] as const;
+
+const generic_keywords = new Set(['ai', 'agi', 'generative ai']);
+const technical_signal_pattern =
+	/\b(?:agent|agents|api|benchmark|chip|chips|cuda|dataset|datasets|developer|eval|evals|fine-?tun(?:e|ing)|framework|gpu|inference|infrastructure|kubernetes|library|llm|model|models|open source|paper|papers|prompt|rag|release|released|repo|research|safety|sdk|security|tool|tooling|training|transformer|vulnerability|workflow)\b/iu;
+
+function has_prefilter_feed_signal(
+	text: string,
+	matched_keywords: readonly string[],
+): boolean {
+	return (
+		matched_keywords.some(
+			(keyword) => !generic_keywords.has(keyword.toLowerCase()),
+		) || technical_signal_pattern.test(text)
+	);
+}
 
 function did_from_at_uri(uri: string): string | undefined {
 	const match = /^at:\/\/(did:[^/]+)\//u.exec(uri);

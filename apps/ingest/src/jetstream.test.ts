@@ -72,7 +72,7 @@ describe('candidate_post_from_jetstream_event', () => {
 });
 
 describe('process_jetstream_message', () => {
-	it('accepts keyword hits in ingest mode without a configured judge', async () => {
+	it('rejects keyword hits without a configured judge', async () => {
 		const written_posts: unknown[] = [];
 		await expect(
 			process_jetstream_message(JSON.stringify(post_event), {
@@ -89,8 +89,11 @@ describe('process_jetstream_message', () => {
 					},
 				},
 			}),
-		).resolves.toMatchObject({ kind: 'accepted' });
-		expect(written_posts).toHaveLength(1);
+		).resolves.toMatchObject({
+			kind: 'rejected',
+			reason: 'judge-not-configured',
+		});
+		expect(written_posts).toHaveLength(0);
 	});
 
 	it('stores judge metadata for accepted posts', async () => {

@@ -149,6 +149,7 @@ describe('create_sqlite_feed_store', () => {
 			{ id: '0006_excluded_handle_patterns' },
 			{ id: '0007_exclude_firehose_news_sources' },
 			{ id: '0008_exclude_current_news_sources' },
+			{ id: '0009_require_judged_feed_posts' },
 		]);
 		database.close();
 	});
@@ -163,6 +164,7 @@ describe('create_sqlite_feed_store', () => {
 			},
 			suppression_patterns: expect.arrayContaining([
 				'\\bAI\\s+slop\\b',
+				'\\b(?:black market|sovereign wealth fund)\\b',
 			]),
 			excluded_dids: expect.arrayContaining([
 				'did:plc:3mbqqo3dxddhl7nwqmghsn6a',

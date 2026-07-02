@@ -29,6 +29,7 @@ export type RejectionReason =
 	| 'duplicate'
 	| 'keyword-miss'
 	| 'too-short'
+	| 'weak-signal'
 	| 'suppressed';
 
 export type FilterResult =
