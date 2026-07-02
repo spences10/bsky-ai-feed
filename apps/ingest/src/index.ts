@@ -186,6 +186,8 @@ async function run_cli(args: string[]): Promise<void> {
 				'  BSKY_AI_FEED_STATUS_PATH overrides .data/ingest-status.json',
 				'  AI_JUDGE_BATCH_SIZE batches paid judge calls (default 25)',
 				'  AI_JUDGE_BATCH_DELAY_MS flushes partial judge batches (default 30000)',
+				'  AI_JUDGE_MAX_CANDIDATES_PER_HOUR caps paid judge candidates (default 25)',
+				'  AI_JUDGE_MAX_CANDIDATES_PER_DAY caps paid judge candidates (default 300)',
 				'',
 				`Jetstream URL: ${create_jetstream_url(process.env.JETSTREAM_HOST)}`,
 			].join('\n'),
@@ -216,6 +218,12 @@ async function run_cli(args: string[]): Promise<void> {
 				),
 				judge_batch_delay_ms: parse_optional_number(
 					process.env.AI_JUDGE_BATCH_DELAY_MS,
+				),
+				judge_candidate_limit_per_hour: parse_optional_number(
+					process.env.AI_JUDGE_MAX_CANDIDATES_PER_HOUR,
+				),
+				judge_candidate_limit_per_day: parse_optional_number(
+					process.env.AI_JUDGE_MAX_CANDIDATES_PER_DAY,
 				),
 				on_open: () => {
 					retry_delay_ms = 1000;

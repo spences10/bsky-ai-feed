@@ -22,6 +22,8 @@ export type JetstreamRunMode = 'ingest';
 
 const default_judge_batch_size = 25;
 const default_judge_batch_delay_ms = 30_000;
+const default_judge_candidate_limit_per_hour = 25;
+const default_judge_candidate_limit_per_day = 300;
 
 export type JetstreamRunOptions = {
 	mode: JetstreamRunMode;
@@ -32,6 +34,8 @@ export type JetstreamRunOptions = {
 	quality_threshold?: number;
 	judge_batch_size?: number;
 	judge_batch_delay_ms?: number;
+	judge_candidate_limit_per_hour?: number;
+	judge_candidate_limit_per_day?: number;
 	max_events?: number;
 	seen_text?: Set<string>;
 	log?: (message: string) => void;
@@ -275,6 +279,7 @@ export async function run_jetstream(
 		options.judge_batch_size ?? default_judge_batch_size;
 	const judge_batch_delay_ms =
 		options.judge_batch_delay_ms ?? default_judge_batch_delay_ms;
+	const judge_budget = create_judge_budget(options);
 	let flush_timer: NodeJS.Timeout | undefined;
 	let processed_events = 0;
 	let closed_for_limit = false;
@@ -345,6 +350,14 @@ export async function run_jetstream(
 					emit(result);
 					return;
 				}
+				if (!judge_budget.try_consume()) {
+					emit({
+						kind: 'rejected',
+						post: result.post,
+						reason: 'judge-budget-exhausted',
+					});
+					return;
+				}
 				candidate_buffer.push(result);
 				schedule_flush();
 			})().catch((error: unknown) => {
@@ -392,6 +405,44 @@ function prefilter_jetstream_message(
 		kind: 'candidate',
 		post,
 		matched_keywords: filter_result.matched_keywords,
+	};
+}
+
+function create_judge_budget(
+	options: Pick<
+		JetstreamRunOptions,
+		'judge_candidate_limit_per_hour' | 'judge_candidate_limit_per_day'
+	>,
+) {
+	const hourly_limit =
+		options.judge_candidate_limit_per_hour ??
+		default_judge_candidate_limit_per_hour;
+	const daily_limit =
+		options.judge_candidate_limit_per_day ??
+		default_judge_candidate_limit_per_day;
+	let hour_window = Date.now();
+	let day_window = hour_window;
+	let hour_count = 0;
+	let day_count = 0;
+
+	return {
+		try_consume(): boolean {
+			const now = Date.now();
+			if (now - hour_window >= 60 * 60 * 1000) {
+				hour_window = now;
+				hour_count = 0;
+			}
+			if (now - day_window >= 24 * 60 * 60 * 1000) {
+				day_window = now;
+				day_count = 0;
+			}
+			if (hour_count >= hourly_limit || day_count >= daily_limit) {
+				return false;
+			}
+			hour_count += 1;
+			day_count += 1;
+			return true;
+		},
 	};
 }
 
