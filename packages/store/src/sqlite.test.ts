@@ -150,6 +150,7 @@ describe('create_sqlite_feed_store', () => {
 			{ id: '0007_exclude_firehose_news_sources' },
 			{ id: '0008_exclude_current_news_sources' },
 			{ id: '0009_require_judged_feed_posts' },
+			{ id: '0010_add_engineering_judge_keywords' },
 		]);
 		database.close();
 	});
@@ -160,7 +161,14 @@ describe('create_sqlite_feed_store', () => {
 
 		await expect(store.get_filter_policy?.()).resolves.toMatchObject({
 			keyword_sets: {
-				default: expect.arrayContaining(['AI', 'OpenAI']),
+				default: expect.arrayContaining([
+					'AI',
+					'OpenAI',
+					'my-pi',
+					'coding agent',
+					'coding agents',
+					'context sidecar',
+				]),
 			},
 			suppression_patterns: expect.arrayContaining([
 				'\\bAI\\s+slop\\b',

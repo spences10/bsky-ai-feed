@@ -94,6 +94,23 @@ describe('filter_candidate_post', () => {
 		});
 	});
 
+	it('accepts specific engineering tooling phrases before judging', () => {
+		expect(
+			filter_candidate_post({
+				...base_post,
+				text: 'my-pi added session recall and MCP tooling for coding agents',
+			}),
+		).toMatchObject({
+			accepted: true,
+			matched_keywords: [
+				'coding agents',
+				'my-pi',
+				'MCP',
+				'session recall',
+			],
+		});
+	});
+
 	it('can use supplied suppression patterns', () => {
 		expect(
 			filter_candidate_post(

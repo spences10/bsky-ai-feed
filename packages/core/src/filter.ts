@@ -137,7 +137,7 @@ const low_signal_patterns = [
 
 const generic_keywords = new Set(['ai', 'agi', 'generative ai']);
 const technical_signal_pattern =
-	/\b(?:agent|agents|api|benchmark|chip|chips|cuda|dataset|datasets|developer|eval|evals|fine-?tun(?:e|ing)|framework|gpu|inference|infrastructure|kubernetes|library|llm|model|models|open source|paper|papers|prompt|rag|release|released|repo|research|safety|sdk|security|tool|tooling|training|transformer|vulnerability|workflow)\b/iu;
+	/\b(?:agent|agents|api|benchmark|coding agent|context (?:reduction|sidecar)|cuda|dataset|datasets|developer|eval|evals|fine-?tun(?:e|ing)|framework|gpu|guardrails?|inference|infrastructure|kubernetes|library|llm|mcp|model|models|open source|openrouter|paper|papers|pi harness|prompt|rag|release|released|repo|research|safety|sdk|security|session recall|tool|tooling|training|transformer|vulnerability|workflow)\b|\bmy-pi\b|\blsp\b/iu;
 
 function has_prefilter_feed_signal(
 	text: string,

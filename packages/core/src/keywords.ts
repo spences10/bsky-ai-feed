@@ -18,6 +18,18 @@ export const default_ai_keywords = [
 	'prompt engineering',
 	'AI model',
 	'language model',
+	'agent harness',
+	'coding agent',
+	'coding agents',
+	'agentic engineering',
+	'my-pi',
+	'OpenRouter',
+	'MCP',
+	'LSP',
+	'context reduction',
+	'context sidecar',
+	'session recall',
+	'guardrails',
 ] as const;
 
 export type AiKeyword = (typeof default_ai_keywords)[number];
